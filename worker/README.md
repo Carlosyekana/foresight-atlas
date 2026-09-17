@@ -54,13 +54,24 @@ Todo lo no secreto está en `wrangler.jsonc` → `vars`. Después de cambiarlo, 
 
 | Variable | Qué controla | Valor inicial |
 |---|---|---|
-| `GEMINI_MODEL` | Modelo de Gemini. `gemini-3.5-flash` es el estable rápido y barato; `gemini-3.5-flash-lite` es aún más barato; `gemini-2.5-flash` sigue disponible pero es generación anterior. | `gemini-3.5-flash` |
+| `THINKING_BUDGET` | Razonamiento interno antes de responder. `"0"` lo desactiva —esta tarea no lo necesita y costaba segundos—; `""` omite el campo. | `0` |
+| `GEMINI_MODEL` | Modelo de Gemini. `gemini-3.6-flash` es el que Google recomienda hoy. **`gemini-2.5-flash` devuelve 404 a claves nuevas** («no longer available to new users»). | `gemini-3.6-flash` |
 | `DAILY_CAP` | Respuestas por día UTC entre todos los visitantes. Es el techo de costo. `0` desactiva el tope. | `150` |
 | `ALLOWED_ORIGINS` | Orígenes que pueden llamar al Worker, separados por coma. Si cambias el dominio de Pages, cámbialo aquí. | Pages + localhost |
 
 El límite por IP (10 preguntas por minuto) está en `ratelimits` del mismo archivo.
 
-Los límites gratuitos de Gemini se consultan por proyecto en [AI Studio → Rate limits](https://aistudio.google.com/rate-limit). Si Gemini devuelve 429, el Worker lo traduce a `quota_exhausted` y la app muestra un mensaje amable en vez de un error.
+### Cuando el modelo no responde
+
+El Worker distingue tres situaciones y la app las explica en el idioma activo:
+
+| Del lado de Gemini | Código | Qué hace el Worker |
+|---|---|---|
+| `503 UNAVAILABLE` «high demand» | `busy` | Reintenta una vez con espera, dentro de un presupuesto total de 25 s. Si persiste, pide reintentar. |
+| `429 RESOURCE_EXHAUSTED` | `quota_exhausted` | No reintenta; la cuota no se libera en segundos. |
+| `404` modelo inexistente | `upstream` | No reintenta; es un error de configuración. |
+
+Los límites del plan gratuito se consultan por proyecto en [AI Studio → Rate limits](https://aistudio.google.com/rate-limit). Son estrechos: unas pocas decenas de peticiones diarias por modelo bastan para agotarlos probando. Si la guía responde «saturado» de forma persistente, es capacidad de Google, no el Worker — los registros lo dicen literalmente.
 
 ## Desarrollo local
 

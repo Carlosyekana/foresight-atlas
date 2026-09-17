@@ -252,6 +252,7 @@ export const uiEs: UiDict = {
       bad_request: 'No pude entender la pregunta. Intenta reformularla.',
       rate_limited: 'Vas muy rápido. Espera un momento antes de la siguiente pregunta.',
       quota_exhausted: 'El atlas ya respondió todo lo que podía hoy. Vuelve mañana; el grafo sigue disponible.',
+      busy: 'El modelo está saturado en este momento. Vuelve a intentarlo en unos segundos.',
       upstream: 'El modelo respondió algo que no pude usar. Prueba de nuevo.',
       unavailable: 'No pude conectar con la guía. Revisa tu conexión e intenta otra vez.',
     },

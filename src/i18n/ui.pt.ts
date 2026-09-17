@@ -252,6 +252,7 @@ export const uiPt: UiDict = {
       bad_request: 'Não consegui entender a pergunta. Tente reformulá-la.',
       rate_limited: 'Você está indo rápido. Espere um momento antes da próxima pergunta.',
       quota_exhausted: 'O atlas já respondeu tudo o que podia hoje. Volte amanhã; o grafo continua disponível.',
+      busy: 'O modelo está sobrecarregado neste momento. Tente de novo em alguns segundos.',
       upstream: 'O modelo respondeu algo que não consegui usar. Tente de novo.',
       unavailable: 'Não consegui conectar ao guia. Verifique sua conexão e tente outra vez.',
     },

@@ -38,7 +38,7 @@ export interface AskPlan {
   outOfScope: boolean;
 }
 
-export type AskErrorCode = 'bad_request' | 'rate_limited' | 'quota_exhausted' | 'upstream' | 'unavailable';
+export type AskErrorCode = 'bad_request' | 'rate_limited' | 'quota_exhausted' | 'busy' | 'upstream' | 'unavailable';
 
 export interface AskError {
   error: AskErrorCode;

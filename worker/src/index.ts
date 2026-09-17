@@ -2,7 +2,16 @@ import { isAskRequest, MAX_HISTORY_TURNS, planSchema, sanitizePlan, type AskErro
 import { systemPrompt } from '../../src/ai/prompt';
 
 const MAX_BODY_BYTES = 16_384;
-const UPSTREAM_TIMEOUT_MS = 25_000;
+// Gemini returns 503 UNAVAILABLE under load and calls those spikes temporary, so a
+// retry usually turns one into an answer. But waiting is itself a cost: past the total
+// budget, telling the reader to try again beats making them watch a spinner.
+const TOTAL_BUDGET_MS = 25_000;
+const UPSTREAM_TIMEOUT_MS = 15_000;
+const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
+const MAX_ATTEMPTS = 2;
+const BACKOFF_MS = [600];
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function corsHeaders(origin: string | null, allowed: Set<string>): HeadersInit {
   const granted = origin && allowed.has(origin) ? origin : '';
@@ -40,8 +49,18 @@ function secondsUntilUtcMidnight() {
 
 interface GeminiResponse {
   candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
-  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; totalTokenCount?: number };
   error?: { message?: string; status?: string };
+}
+
+/**
+ * Gemini 2.5+ reasons before answering, which costs seconds this task does not need:
+ * the atlas is in the prompt and the output is a fixed schema. THINKING_BUDGET is a
+ * var so the shape can change without a code edit — "0" disables it, "" omits the field.
+ */
+function thinkingConfig(budget: string | undefined) {
+  if (budget === undefined || budget === '') return {};
+  return { thinkingConfig: { thinkingBudget: Number(budget) } };
 }
 
 export default {
@@ -88,36 +107,58 @@ export default {
     ];
 
     const started = Date.now();
-    let upstream: Response;
-    try {
-      upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt(body.lang, body.selectedId) }] },
-          contents,
-          generationConfig: { temperature: 0.3, responseMimeType: 'application/json', responseSchema: planSchema },
-        }),
-        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-      });
-    } catch (error) {
-      console.error(JSON.stringify({ event: 'upstream_unreachable', message: error instanceof Error ? error.message : String(error) }));
-      return fail('unavailable', 'The model could not be reached. Try again shortly.', 503, headers, 20);
+    const requestBody = JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt(body.lang, body.selectedId) }] },
+      contents,
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, responseMimeType: 'application/json', responseSchema: planSchema, ...thinkingConfig(env.THINKING_BUDGET) },
+    });
+
+    let upstream: Response | null = null;
+    let payload: GeminiResponse = {};
+    let lastFailure: 'unreachable' | 'unreadable' | 'status' = 'unreachable';
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) await sleep(BACKOFF_MS[attempt - 1]);
+      const remaining = TOTAL_BUDGET_MS - (Date.now() - started);
+      if (remaining <= 3_000) break;
+      try {
+        upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+          body: requestBody,
+          signal: AbortSignal.timeout(Math.min(UPSTREAM_TIMEOUT_MS, remaining)),
+        });
+      } catch (error) {
+        lastFailure = 'unreachable';
+        console.warn(JSON.stringify({ event: 'upstream_unreachable', attempt, message: error instanceof Error ? error.message : String(error) }));
+        continue;
+      }
+
+      try {
+        payload = (await upstream.json()) as GeminiResponse;
+      } catch {
+        lastFailure = 'unreadable';
+        console.warn(JSON.stringify({ event: 'upstream_unreadable', attempt, status: upstream.status }));
+        continue;
+      }
+
+      if (upstream.ok) break;
+
+      lastFailure = 'status';
+      const level = RETRYABLE_STATUS.has(upstream.status) ? console.warn : console.error;
+      level(JSON.stringify({ event: 'upstream_error', attempt, status: upstream.status, status_code: payload.error?.status, message: payload.error?.message }));
+      if (upstream.status === 429 || !RETRYABLE_STATUS.has(upstream.status)) break;
     }
 
-    let payload: GeminiResponse;
-    try {
-      payload = (await upstream.json()) as GeminiResponse;
-    } catch {
-      return fail('upstream', 'The model returned something unreadable.', 502, headers);
-    }
-
-    if (upstream.status === 429) {
-      console.warn(JSON.stringify({ event: 'upstream_rate_limited', model: env.GEMINI_MODEL, status: payload.error?.status }));
-      return fail('quota_exhausted', 'The model is over its quota right now. Try again later.', 429, headers, 300);
-    }
-    if (!upstream.ok) {
-      console.error(JSON.stringify({ event: 'upstream_error', status: upstream.status, message: payload.error?.message }));
+    if (!upstream || !upstream.ok) {
+      if (upstream?.status === 429) {
+        return fail('quota_exhausted', 'The model is over its quota right now. Try again later.', 429, headers, 300);
+      }
+      // Every transient shape ends here: the model is up but has no room for us.
+      if (lastFailure !== 'status' || RETRYABLE_STATUS.has(upstream?.status ?? 0)) {
+        console.error(JSON.stringify({ event: 'upstream_gave_up', model: env.GEMINI_MODEL, lastFailure, status: upstream?.status, ms: Date.now() - started }));
+        return fail('busy', 'The model is under heavy load right now. Try again in a moment.', 503, headers, 30);
+      }
       return fail('upstream', 'The model returned an error.', 502, headers);
     }
 
@@ -126,7 +167,7 @@ export default {
     try {
       plan = sanitizePlan(JSON.parse(text));
     } catch {
-      console.error(JSON.stringify({ event: 'plan_unparseable', finishReason: payload.candidates?.[0]?.finishReason, sample: text.slice(0, 200) }));
+      console.error(JSON.stringify({ event: 'plan_unparseable', finishReason: payload.candidates?.[0]?.finishReason, usage: payload.usageMetadata, sample: text.slice(0, 200) }));
       return fail('upstream', 'The model answered off-script.', 502, headers);
     }
 
@@ -141,6 +182,8 @@ export default {
       pathLength: plan.path.length,
       outOfScope: plan.outOfScope,
       tokens: payload.usageMetadata?.totalTokenCount,
+      thoughtTokens: payload.usageMetadata?.thoughtsTokenCount,
+      finishReason: payload.candidates?.[0]?.finishReason,
       ms: Date.now() - started,
       dayUsed: used + 1,
     }));

@@ -222,7 +222,7 @@ export interface UiDict {
     close: string;
     disclaimer: string;
     offline: string;
-    errors: Record<'bad_request' | 'rate_limited' | 'quota_exhausted' | 'upstream' | 'unavailable', string>;
+    errors: Record<'bad_request' | 'rate_limited' | 'quota_exhausted' | 'busy' | 'upstream' | 'unavailable', string>;
   };
   defaultCollection: string;
 }

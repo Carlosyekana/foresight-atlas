@@ -6,6 +6,7 @@ export const ASK_ENDPOINT: string = (import.meta.env.VITE_ASK_ENDPOINT as string
 
 export const askEnabled = ASK_ENDPOINT.length > 0;
 
+// Slightly beyond the Worker's own total budget, so its error message wins.
 const CLIENT_TIMEOUT_MS = 30_000;
 
 export class AskFailure extends Error {

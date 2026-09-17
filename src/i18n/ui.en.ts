@@ -252,6 +252,7 @@ export const uiEn: UiDict = {
       bad_request: "I couldn't make sense of that. Try rephrasing it.",
       rate_limited: "You're going fast. Wait a moment before the next question.",
       quota_exhausted: 'The atlas has answered all it can today. Come back tomorrow; the graph is still here.',
+      busy: 'The model is under heavy load right now. Try again in a few seconds.',
       upstream: "The model answered in a way I couldn't use. Try again.",
       unavailable: "I couldn't reach the guide. Check your connection and try again.",
     },
