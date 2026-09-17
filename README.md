@@ -21,6 +21,7 @@ Un panel lateral donde se pregunta en lenguaje natural y **el grafo responde**: 
 
 - **Solo sabe lo que hay en el atlas.** El atlas completo va en el prompt (cabe de sobra: ~7k tokens por idioma), así que no hay embeddings ni base vectorial. Cuando algo no está, lo dice y señala lo más cercano que sí está.
 - **Toda cita se valida.** El modelo responde con ids; la app comprueba cada uno contra el atlas y descarta lo que no existe. Un nodo inventado no llega a la pantalla.
+- **Responde en 1–2 segundos.** Gemini 3.5 Flash Lite, sin razonamiento interno: el atlas ya está en el prompt y la salida tiene esquema fijo.
 - **La clave de Gemini nunca viaja al navegador.** Un Worker de Cloudflare la guarda, limita el uso por IP y por día, y devuelve un plan estructurado. Ver [`worker/README.md`](worker/README.md) para desplegarlo; sin la variable `VITE_ASK_ENDPOINT`, la app se compila sin la guía y todo lo demás funciona igual.
 
 La decisión de arquitectura está razonada en [`docs/adr/0001-capa-semantica-ia.md`](docs/adr/0001-capa-semantica-ia.md).

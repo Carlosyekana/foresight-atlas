@@ -54,8 +54,8 @@ Todo lo no secreto está en `wrangler.jsonc` → `vars`. Después de cambiarlo, 
 
 | Variable | Qué controla | Valor inicial |
 |---|---|---|
-| `THINKING_BUDGET` | Razonamiento interno antes de responder. `"0"` lo desactiva —esta tarea no lo necesita y costaba segundos—; `""` omite el campo. | `0` |
-| `GEMINI_MODEL` | Modelo de Gemini. `gemini-3.6-flash` es el que Google recomienda hoy. **`gemini-2.5-flash` devuelve 404 a claves nuevas** («no longer available to new users»). | `gemini-3.6-flash` |
+| `THINKING` | Razonamiento interno antes de responder; esta tarea no lo necesita y costaba segundos. Acepta un número (`thinkingBudget` de la era 2.5), una palabra de nivel (`thinkingLevel` de los 3.x) o `""` para omitir el campo. **Los modelos son estrictos**: `gemini-3.5-flash-lite` rechaza las dos formas con 400 y solo funciona con `""`. Si cambias de modelo, vuelve a comprobarlo. | `""` |
+| `GEMINI_MODEL` | Modelo de Gemini. `gemini-3.5-flash-lite` responde en 1–2 s y tiene la cuota gratuita más amplia. `gemini-3.6-flash` es el que Google recomienda en general, pero se congestiona más. **`gemini-2.5-flash` devuelve 404 a claves nuevas** («no longer available to new users»). | `gemini-3.5-flash-lite` |
 | `DAILY_CAP` | Respuestas por día UTC entre todos los visitantes. Es el techo de costo. `0` desactiva el tope. | `150` |
 | `ALLOWED_ORIGINS` | Orígenes que pueden llamar al Worker, separados por coma. Si cambias el dominio de Pages, cámbialo aquí. | Pages + localhost |
 

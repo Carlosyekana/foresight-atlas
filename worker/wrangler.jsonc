@@ -11,10 +11,13 @@
   },
   // Non-secret settings. GEMINI_API_KEY is a secret: `npx wrangler secret put GEMINI_API_KEY`.
   "vars": {
-    "GEMINI_MODEL": "gemini-3.6-flash",
-    // Internal reasoning before answering. "0" disables it; "" omits the field entirely.
-    // This task needs none: the atlas is in the prompt and the output shape is fixed.
-    "THINKING_BUDGET": "0",
+    "GEMINI_MODEL": "gemini-3.5-flash-lite",
+    // Internal reasoning before answering; this task needs none. Accepts a number
+    // (2.5-era thinkingBudget, "0" disables), a level word (3.x thinkingLevel), or ""
+    // to omit the field. Models are strict: gemini-3.5-flash-lite rejects BOTH forms
+    // with 400 INVALID_ARGUMENT and only works with "", while gemini-3.6-flash takes
+    // a numeric budget. Change the model, re-check this.
+    "THINKING": "",
     // Answers per UTC day across all visitors. The cost ceiling; raise once usage is known.
     "DAILY_CAP": "150",
     // Comma-separated. Localhost entries exist for `npm run dev` and `vite preview`.

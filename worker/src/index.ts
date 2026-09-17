@@ -54,13 +54,17 @@ interface GeminiResponse {
 }
 
 /**
- * Gemini 2.5+ reasons before answering, which costs seconds this task does not need:
- * the atlas is in the prompt and the output is a fixed schema. THINKING_BUDGET is a
- * var so the shape can change without a code edit — "0" disables it, "" omits the field.
+ * Gemini reasons before answering, which costs seconds this task does not need: the
+ * atlas is already in the prompt and the output shape is fixed. The models disagree on
+ * how to say so — 2.5 takes a numeric `thinkingBudget`, 3.x takes a `thinkingLevel`
+ * word and rejects the budget with 400 INVALID_ARGUMENT — so THINKING carries whichever
+ * the configured model wants: a number, a level word, or "" to omit the field entirely.
  */
-function thinkingConfig(budget: string | undefined) {
-  if (budget === undefined || budget === '') return {};
-  return { thinkingConfig: { thinkingBudget: Number(budget) } };
+function thinkingConfig(thinking: string | undefined) {
+  const value = thinking?.trim();
+  if (!value) return {};
+  if (/^\d+$/.test(value)) return { thinkingConfig: { thinkingBudget: Number(value) } };
+  return { thinkingConfig: { thinkingLevel: value } };
 }
 
 export default {
@@ -110,7 +114,7 @@ export default {
     const requestBody = JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt(body.lang, body.selectedId) }] },
       contents,
-      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, responseMimeType: 'application/json', responseSchema: planSchema, ...thinkingConfig(env.THINKING_BUDGET) },
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, responseMimeType: 'application/json', responseSchema: planSchema, ...thinkingConfig(env.THINKING) },
     });
 
     let upstream: Response | null = null;
@@ -145,8 +149,9 @@ export default {
       if (upstream.ok) break;
 
       lastFailure = 'status';
-      const level = RETRYABLE_STATUS.has(upstream.status) ? console.warn : console.error;
-      level(JSON.stringify({ event: 'upstream_error', attempt, status: upstream.status, status_code: payload.error?.status, message: payload.error?.message }));
+      // Call the method on console directly: a detached reference loses its binding.
+      const detail = JSON.stringify({ event: 'upstream_error', attempt, status: upstream.status, status_code: payload.error?.status, message: payload.error?.message });
+      if (RETRYABLE_STATUS.has(upstream.status)) console.warn(detail); else console.error(detail);
       if (upstream.status === 429 || !RETRYABLE_STATUS.has(upstream.status)) break;
     }
 
