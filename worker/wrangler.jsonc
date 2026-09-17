@@ -23,6 +23,6 @@
   ],
   // Daily counter. Create once with `npx wrangler kv namespace create ASK_COUNTER` and paste the id here.
   "kv_namespaces": [
-    { "binding": "ASK_COUNTER", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }
+    { "binding": "ASK_COUNTER", "id": "c699eeb362fe4309930c33450b2419e4" }
   ]
 }
