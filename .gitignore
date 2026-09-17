@@ -5,3 +5,6 @@ dist/
 .vite/
 .claude/
 *.log
+.wrangler/
+worker/worker-configuration.d.ts
+.dev.vars

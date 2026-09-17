@@ -22,6 +22,10 @@ interface GraphProps {
   onReset: () => void;
   expanded: boolean;
   onExpand: () => void;
+  /** Nodes an answer rests on. Everything else recedes while it is set. */
+  emphasisIds?: string[];
+  /** Ordered route to draw over the graph. Consecutive ids are joined by atlas edges. */
+  pathIds?: string[];
 }
 
 const W = 960;
@@ -52,7 +56,7 @@ function curve(a: Point, b: Point, index: number) {
   return { d: `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`, x: (a.x + 2 * cx + b.x) / 4, y: (a.y + 2 * cy + b.y) / 4 };
 }
 
-export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onClearFocus, settings, svgRef, onReset, expanded, onExpand }: GraphProps) {
+export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onClearFocus, settings, svgRef, onReset, expanded, onExpand, emphasisIds = [], pathIds = [] }: GraphProps) {
   const { ui, typeLabels, typePlurals } = useI18n();
   const [view, setView] = useState<View>(initialView);
   const [positions, setPositions] = useState<Record<string, Point>>({});
@@ -114,6 +118,25 @@ export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onC
     });
     return result;
   }, [edges, activeId]);
+
+  const emphasis = useMemo(() => new Set(emphasisIds), [emphasisIds]);
+
+  // An answer should be seen, not hunted for: fit the view to the nodes it rests on.
+  useEffect(() => {
+    if (!emphasisIds.length) return;
+    const points = emphasisIds.map((id) => layout.get(id)).filter((point): point is Point => !!point);
+    if (!points.length) return;
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const box = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    const k = Math.min(1.6, Math.max(0.6, Math.min(W / (box.w + 260), H / (box.h + 220))));
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    setView({ k, x: (W / 2 - cx) * k, y: (H / 2 - cy) * k });
+    // Only re-fit when the set of emphasized nodes changes, not when a node is dragged.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emphasisIds.join('|')]);
+  const pathPoints = useMemo(() => pathIds.map((id) => ({ id, point: layout.get(id) })).filter((item): item is { id: string; point: Point } => !!item.point), [pathIds, layout]);
 
   function zoom(amount: number) {
     setView((current) => {
@@ -233,14 +256,16 @@ export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onC
             const point = layout.get(node.id)!;
             const color = palette[node.type];
             const selected = node.id === selectedId;
-            const dimmed = settings.highlight && activeId && connected.size > 1 && !connected.has(node.id);
+            const emphasized = emphasis.has(node.id);
+            const dimmed = emphasis.size > 0 ? !emphasized : settings.highlight && activeId && connected.size > 1 && !connected.has(node.id);
             return <motion.g key={node.id} transform={`translate(${point.x} ${point.y})`} className={`graph-node ${selected ? 'selected' : ''}`} data-node={node.id}
-              initial={{ opacity: 0 }} animate={{ opacity: dimmed ? 0.73 : 1 }} transition={{ duration: reduceMotion ? 0 : 0.3, delay: reduceMotion ? 0 : index * 0.009 }}
+              initial={{ opacity: 0 }} animate={{ opacity: dimmed ? (emphasis.size > 0 ? 0.38 : 0.73) : 1 }} transition={{ duration: reduceMotion ? 0 : 0.3, delay: reduceMotion ? 0 : index * 0.009 }}
               role="button" tabIndex={0} aria-label={`${node.name}, ${typeLabels[node.type]}. ${ui.graph.nodeHint}`} aria-pressed={selected}
               onMouseEnter={() => setHovered(node.id)} onMouseLeave={() => setHovered(null)}
               onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(node); } }}>
               <title>{node.name}: {node.subtitle}</title>
               <circle r={node.radius + 10} fill="transparent" />
+              {emphasized && !selected && <circle r={node.radius + 7} fill="none" stroke={color.ink} strokeWidth="1.4" strokeOpacity="0.55" strokeDasharray="3 4" pointerEvents="none" />}
               {selected && <>
                 <circle r={node.radius + 8} fill={color.soft} stroke={color.stroke} strokeWidth="1" strokeOpacity="0.6" />
                 <motion.circle r={node.radius + 13} fill="none" stroke={color.stroke} strokeWidth="1" initial={{ opacity: 0.2 }}
@@ -258,6 +283,10 @@ export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onC
               </text>}
             </motion.g>;
           })}
+          {pathPoints.length > 1 && <g className="graph-path" pointerEvents="none" aria-hidden="true">
+            {pathPoints.slice(1).map((item, index) => { const a = pathPoints[index].point; const b = item.point; const seg = curve(a, b, edges.findIndex((edge) => (edge.source === pathPoints[index].id && edge.target === item.id) || (edge.target === pathPoints[index].id && edge.source === item.id))); return <path key={`${pathPoints[index].id}-${item.id}`} d={seg.d} fill="none" stroke="#345b43" strokeWidth="3" strokeOpacity="0.85" strokeLinecap="round" />; })}
+            {pathPoints.map((item, index) => { const r = (nodes.find((node) => node.id === item.id)?.radius ?? 18) * 0.72; return <g key={item.id} transform={`translate(${item.point.x + r} ${item.point.y - r})`}><circle r="8.5" fill="#345b43" stroke="#fafbf7" strokeWidth="2" /><text textAnchor="middle" dominantBaseline="central" fill="#ffffff" fontSize="9" fontWeight="700" fontFamily="Manrope, sans-serif">{index + 1}</text></g>; })}
+          </g>}
         </g>
       </svg>
 

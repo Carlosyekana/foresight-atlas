@@ -15,9 +15,19 @@ Un grafo de conocimiento interactivo que conecta autores, conceptos y métodos d
 - **Exportación** a SVG (imagen vectorial) o JSON (nodos, relaciones y referencias, distinguiendo vínculos con fuente directa de asociaciones editoriales).
 - Accesibilidad: navegación por teclado, roles ARIA, respeto por `prefers-reduced-motion`.
 
+## Preguntarle al atlas
+
+Un panel lateral donde se pregunta en lenguaje natural y **el grafo responde**: resalta los nodos que sostienen la respuesta, dibuja recorridos entre ideas con pasos numerados, ajusta los filtros cuando la pregunta es una categoría y ofrece guardar los hallazgos como colección. La prosa acompaña; la respuesta es el grafo.
+
+- **Solo sabe lo que hay en el atlas.** El atlas completo va en el prompt (cabe de sobra: ~7k tokens por idioma), así que no hay embeddings ni base vectorial. Cuando algo no está, lo dice y señala lo más cercano que sí está.
+- **Toda cita se valida.** El modelo responde con ids; la app comprueba cada uno contra el atlas y descarta lo que no existe. Un nodo inventado no llega a la pantalla.
+- **La clave de Gemini nunca viaja al navegador.** Un Worker de Cloudflare la guarda, limita el uso por IP y por día, y devuelve un plan estructurado. Ver [`worker/README.md`](worker/README.md) para desplegarlo; sin la variable `VITE_ASK_ENDPOINT`, la app se compila sin la guía y todo lo demás funciona igual.
+
+La decisión de arquitectura está razonada en [`docs/adr/0001-capa-semantica-ia.md`](docs/adr/0001-capa-semantica-ia.md).
+
 ## Stack
 
-React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Framer Motion · lucide-react
+React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Framer Motion · lucide-react · Cloudflare Workers + Gemini para la guía
 
 La compilación usa `vite-plugin-singlefile`, así que `dist/index.html` es un **único archivo autocontenido** (~446 KB, ~138 KB gzip) que funciona abriéndolo directamente o subiéndolo a cualquier hosting estático.
 
@@ -37,10 +47,15 @@ npm run preview    # sirve el build
 src/
   App.tsx                 estado de la aplicación, navegación, filtros, modales
   components/
-    Graph.tsx             grafo SVG: layout, zoom/paneo/pinch, minimapa
+    Graph.tsx             grafo SVG: layout, zoom/paneo/pinch, minimapa, rutas
+    AskPanel.tsx          la guía: conversación, fichas de nodos, recorridos
     DetailPanel.tsx       perfil del nodo seleccionado y sus conexiones
     Modal.tsx             diálogo accesible con foco atrapado
     NodeMark.tsx          marca visual por tipo de nodo
+  ai/
+    contract.ts           petición y plan compartidos con el Worker; validación de ids
+    prompt.ts             el atlas serializado al prompt del sistema
+    client.ts             llamada al Worker desde el navegador
   data/atlas.ts           estructura: ids, posiciones, tipos y enlaces
   i18n/
     index.tsx             contexto de idioma y ensamblado del atlas
@@ -48,6 +63,7 @@ src/
     content.{es,en,pt}.ts texto del atlas: nombres, descripciones, relaciones
     ui.{es,en,pt}.ts      texto de la interfaz
   index.css               sistema de estilos
+worker/                   endpoint de IA (Cloudflare Worker); ver worker/README.md
 ```
 
 La **estructura** del grafo y su **texto** están separados a propósito: [`src/data/atlas.ts`](src/data/atlas.ts) no contiene ni una cadena legible, solo ids, coordenadas, tipos y aristas. Todo lo que se lee vive en `src/i18n/`, indexado por esos mismos ids.

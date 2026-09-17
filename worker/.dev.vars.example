@@ -1,0 +1,2 @@
+# Copy to .dev.vars (gitignored) for `npm run dev`. Production uses `wrangler secret put GEMINI_API_KEY`.
+GEMINI_API_KEY=your-google-ai-studio-key

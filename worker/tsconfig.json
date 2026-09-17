@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "types": []
+  },
+  "include": [
+    "src",
+    "worker-configuration.d.ts",
+    "../src/ai/contract.ts",
+    "../src/ai/prompt.ts",
+    "../src/data/*.ts",
+    "../src/i18n/types.ts",
+    "../src/i18n/content.*.ts"
+  ]
+}

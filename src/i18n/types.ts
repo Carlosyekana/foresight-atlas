@@ -199,5 +199,30 @@ export interface UiDict {
     exportReady: string;
     dismiss: string;
   };
+  ask: {
+    open: string;
+    title: string;
+    eyebrow: string;
+    placeholder: string;
+    send: string;
+    stop: string;
+    thinking: string;
+    intro: string;
+    /** Starter questions shown before the first message. Written per language, not translated. */
+    starters: string[];
+    routeFrom: string;
+    highlightedLabel: string;
+    pathLabel: string;
+    showPath: string;
+    filtersApplied: string;
+    saveCollection: string;
+    collectionSaved: string;
+    outOfScope: string;
+    clear: string;
+    close: string;
+    disclaimer: string;
+    offline: string;
+    errors: Record<'bad_request' | 'rate_limited' | 'quota_exhausted' | 'upstream' | 'unavailable', string>;
+  };
   defaultCollection: string;
 }

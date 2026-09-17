@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
-import { AlignLeft, ArrowDownAZ, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Compass, Download, FileJson, Folder, FolderPlus, Image, Languages, Layers3, Menu, Network, PanelRightOpen, Plus, Search, Settings2, Shapes, Shuffle, UsersRound, X } from 'lucide-react';
+import { AlignLeft, ArrowDownAZ, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Compass, Download, FileJson, Folder, FolderPlus, Image, Languages, Layers3, Menu, Network, PanelRightOpen, Plus, Search, Settings2, Shapes, Shuffle, Sparkles, UsersRound, X } from 'lucide-react';
 import Graph, { type GraphSettings } from './components/Graph';
+import AskPanel from './components/AskPanel';
 import DetailPanel from './components/DetailPanel';
 import Modal from './components/Modal';
 import NodeMark from './components/NodeMark';
+import { askEnabled } from './ai/client';
+import type { AskPlan } from './ai/contract';
 import { edges, palette, shapeById, type AtlasNode, type EntityType, type School } from './data/atlas';
 import { format, languageNames, languages, useI18n, type Language } from './i18n';
 
@@ -80,6 +83,9 @@ export default function App() {
   const [storageAvailable, setStorageAvailable] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchIndex, setSearchIndex] = useState(0);
+  const [askOpen, setAskOpen] = useState(false);
+  const [emphasis, setEmphasis] = useState<string[]>([]);
+  const [route, setRoute] = useState<string[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -126,6 +132,7 @@ export default function App() {
         else if (dropdown) setDropdown(null);
         else if (searchOpen) setSearchOpen(false);
         else if (mobileNav) setMobileNav(false);
+        else if (askOpen) setAskOpen(false);
         else if (detailsOpen && window.innerWidth <= 900) setDetailsOpen(false);
         else if (expanded) setExpanded(false);
         else if (focusId) setFocusId(null);
@@ -133,7 +140,7 @@ export default function App() {
     };
     document.addEventListener('keydown', keydown);
     return () => document.removeEventListener('keydown', keydown);
-  }, [modal, dropdown, searchOpen, mobileNav, detailsOpen, expanded, focusId]);
+  }, [modal, dropdown, searchOpen, mobileNav, askOpen, detailsOpen, expanded, focusId]);
 
   const baseNodes = useMemo(() => {
     if (page === 'authors') return nodes.filter((node) => node.type === 'author');
@@ -163,7 +170,7 @@ export default function App() {
   const viewSummary = isGraph ? `${visibleEdges.length} ${ui.view.connections}` : sort === 'alphabetical' ? ui.view.azSort : ui.view.mostConnected;
 
   function notify(message: string) { setToast({ message, id: Date.now() }); }
-  function resetFilters() { setQuery(''); setTypeFilter('all'); setSchoolFilter('all'); setFocusId(null); setDropdown(null); setSearchOpen(false); }
+  function resetFilters() { setQuery(''); setTypeFilter('all'); setSchoolFilter('all'); setFocusId(null); setDropdown(null); setSearchOpen(false); setEmphasis([]); setRoute([]); }
   function navigate(next: Page, collectionId?: string) {
     setPage(next); setViewMode(next === 'graph' ? 'graph' : 'list'); resetFilters(); setMobileNav(false); setExpanded(false);
     if (collectionId) setActiveCollection(collectionId);
@@ -217,6 +224,23 @@ export default function App() {
     const id = `collection-${Date.now().toString(36)}`;
     setCollections((current) => [...current, { id, name, nodeIds: [] }]);
     setModal(null); navigate('collection', id); notify(format(ui.toasts.collectionReady, { name }));
+  }
+  function openGuide() { setAskOpen(true); if (window.innerWidth <= 900) setDetailsOpen(false); }
+  function closeGuide() { setAskOpen(false); setEmphasis([]); setRoute([]); }
+  /** Selecting from the guide moves the graph without swapping the panel away. */
+  function selectFromGuide(node: AtlasNode) { setPage('graph'); setViewMode('graph'); setSelectedId(node.id); }
+  function applyPlan(plan: AskPlan) {
+    setPage('graph'); setViewMode('graph'); setQuery(''); setSearchOpen(false); setFocusId(null);
+    setTypeFilter(plan.filters.type); setSchoolFilter(plan.filters.school);
+    setEmphasis(plan.highlight); setRoute(plan.path);
+    if (plan.highlight[0]) setSelectedId(plan.highlight[0]);
+  }
+  function showRoute(ids: string[]) { setPage('graph'); setViewMode('graph'); setTypeFilter('all'); setSchoolFilter('all'); setFocusId(null); setRoute(ids); setEmphasis(ids); }
+  function saveGuideCollection(name: string, ids: string[]) {
+    const id = `collection-${Date.now().toString(36)}`;
+    const unique = collections.some((item) => labelOf(item).toLowerCase() === name.toLowerCase()) ? `${name} ${collections.length}` : name;
+    setCollections((current) => [...current, { id, name: unique, nodeIds: ids }]);
+    notify(format(ui.ask.collectionSaved, { name: unique, count: ids.length }));
   }
   async function exportGraph() {
     let delivered = false;
@@ -272,6 +296,7 @@ export default function App() {
 
       <div className="main-shell">
         <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label={ui.nav.openNavigation} onClick={() => setMobileNav(true)}><Menu size={20} /></button><Layers3 size={15} className="breadcrumb-icon" /><span>{ui.nav.workspace}</span><ChevronRight size={13} /><strong>{pageCopy.breadcrumb}</strong></div><div className="topbar-actions"><span className="living-atlas"><i />{ui.topbar.livingAtlas}</span>
+          {askEnabled && <button className={`button button-secondary ask-open-button ${askOpen ? 'active' : ''}`} aria-pressed={askOpen} aria-label={ui.ask.open} title={ui.ask.open} onClick={() => askOpen ? closeGuide() : openGuide()}><Sparkles size={14} /><span>{ui.ask.open}</span></button>}
           <div className="dropdown-root" data-dropdown-root><button className={`icon-button help-button ${dropdown === 'language' ? 'active' : ''}`} aria-label={ui.topbar.language} title={ui.topbar.language} aria-expanded={dropdown === 'language'} aria-haspopup="menu" onClick={() => setDropdown(dropdown === 'language' ? null : 'language')}><Languages size={18} /></button><AnimatePresence>{dropdown === 'language' && <motion.div className="popover language-popover" role="menu" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><span className="popover-label">{ui.topbar.language.toUpperCase()}</span>{languages.map((code) => <button key={code} className="popover-option" role="menuitemradio" aria-checked={lang === code} lang={code} onClick={() => { setLang(code as Language); setDropdown(null); }}>{languageNames[code]}{lang === code && <Check size={14} />}</button>)}</motion.div>}</AnimatePresence></div>
           <button className="icon-button help-button" aria-label={ui.topbar.about} title={ui.topbar.about} onClick={() => setModal('about')}><CircleHelp size={18} /></button><span className="topbar-divider" /><button className="button button-secondary export-button" onClick={() => { setExportFormat(isGraph ? 'svg' : 'json'); setModal('export'); }}><Download size={14} />{ui.topbar.export}<span className="export-long">{ui.topbar.exportLong}</span></button></div></header>
 
@@ -284,7 +309,7 @@ export default function App() {
           </div>
 
           {expanded && <div className="expanded-backdrop" />}
-          <motion.div className={`workspace-shell ${expanded ? 'workspace-expanded' : ''} ${detailsOpen ? 'with-details' : ''}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+          <motion.div className={`workspace-shell ${expanded ? 'workspace-expanded' : ''} ${detailsOpen || askOpen ? 'with-details' : ''}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
             <div className="workspace-left">
               <div className="workspace-toolbar">
                 <div className="search-area" data-search-root>
@@ -305,16 +330,18 @@ export default function App() {
                   <div className="dropdown-root school-filter" data-dropdown-root><button className={`filter-button ${schoolFilter !== 'all' ? 'filter-active' : ''}`} aria-expanded={dropdown === 'school'} aria-haspopup="menu" onClick={() => setDropdown(dropdown === 'school' ? null : 'school')}><span>{schoolFilter === 'all' ? ui.filters.allSchools : schools[schoolFilter]}</span><ChevronDown size={13} /></button><AnimatePresence>{dropdown === 'school' && <motion.div className="popover school-popover" role="menu" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><span className="popover-label">{ui.filters.schoolOfThought}</span><button className="popover-option" role="menuitemradio" aria-checked={schoolFilter === 'all'} onClick={() => { setSchoolFilter('all'); setFocusId(null); setDropdown(null); }}>{ui.filters.allSchools}{schoolFilter === 'all' && <Check size={14} />}</button>{Object.entries(schools).map(([id, label]) => <button key={id} className="popover-option" role="menuitemradio" aria-checked={schoolFilter === id} onClick={() => { setSchoolFilter(id as School); setFocusId(null); setDropdown(null); }}>{label}{schoolFilter === id && <Check size={14} />}</button>)}</motion.div>}</AnimatePresence></div>
                   <div className="toolbar-separator" />
                   {isGraph ? <div className="dropdown-root" data-dropdown-root><button className={`icon-button settings-button ${dropdown === 'settings' ? 'active' : ''}`} aria-label={ui.filters.displaySettings} title={ui.filters.displaySettings} aria-expanded={dropdown === 'settings'} onClick={() => setDropdown(dropdown === 'settings' ? null : 'settings')}><Settings2 size={17} /></button><AnimatePresence>{dropdown === 'settings' && <motion.div className="popover settings-popover" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><span className="popover-label">{ui.filters.makeItYours}</span>{([{ key: 'labels', label: ui.filters.showLabels }, { key: 'connections', label: ui.filters.showConnections }, { key: 'highlight', label: ui.filters.highlightRelated }] as const).map((item) => <button className="setting-row" key={item.key} role="switch" aria-checked={settings[item.key]} onClick={() => setSettings((current) => ({ ...current, [item.key]: !current[item.key] }))}><span>{item.label}</span><span className={`switch ${settings[item.key] ? 'on' : ''}`}><i /></span></button>)}<p>{ui.filters.dragTip}</p></motion.div>}</AnimatePresence></div> : <div className="dropdown-root" data-dropdown-root><button className="icon-button settings-button" title={ui.filters.sortEntries} aria-label={ui.filters.sortEntries} aria-expanded={dropdown === 'sort'} onClick={() => setDropdown(dropdown === 'sort' ? null : 'sort')}><ArrowDownAZ size={17} /></button>{dropdown === 'sort' && <div className="popover sort-popover" role="menu"><span className="popover-label">{ui.filters.sortYourView}</span>{(['alphabetical', 'connections'] as const).map((value) => <button key={value} className="popover-option" role="menuitemradio" aria-checked={sort === value} onClick={() => { setSort(value); setDropdown(null); }}>{value === 'alphabetical' ? ui.view.azSort : ui.view.mostConnected}{sort === value && <Check size={14} />}</button>)}</div>}</div>}
-                  {!detailsOpen && <button className="icon-button reopen-details" aria-label={ui.filters.openDetails} title={ui.filters.openDetails} onClick={() => setDetailsOpen(true)}><PanelRightOpen size={16} /></button>}
+                  {!detailsOpen && !askOpen && <button className="icon-button reopen-details" aria-label={ui.filters.openDetails} title={ui.filters.openDetails} onClick={() => setDetailsOpen(true)}><PanelRightOpen size={16} /></button>}
                 </div>
               </div>
 
-              {isGraph ? <Graph nodes={visibleNodes} edges={visibleEdges} selectedId={selectedId} onSelect={selectNode} focusId={focusId} onClearFocus={() => setFocusId(null)} settings={settings} svgRef={svgRef} onReset={resetFilters} expanded={expanded} onExpand={() => setExpanded(!expanded)} /> : <div className="directory-scroll">
+              {isGraph ? <Graph nodes={visibleNodes} edges={visibleEdges} selectedId={selectedId} onSelect={selectNode} focusId={focusId} onClearFocus={() => setFocusId(null)} settings={settings} svgRef={svgRef} onReset={resetFilters} expanded={expanded} onExpand={() => setExpanded(!expanded)} emphasisIds={emphasis} pathIds={route} /> : <div className="directory-scroll">
                 {listNodes.length > 0 ? <div className="directory-list"><div className="directory-columns"><span>{page === 'authors' ? ui.directory.columnAuthor : ui.directory.columnName}</span><span className="directory-school">{ui.directory.columnSchool}</span><span>{ui.directory.columnLinks}</span><span /></div>{listNodes.map((node) => <div key={node.id} className={`directory-row ${node.id === selectedId && detailsOpen ? 'selected' : ''}`}><button className="directory-entity" onClick={() => selectNode(node)}><NodeMark node={node} size={38} /><span><strong>{node.name}</strong><small>{node.type === 'author' ? node.subtitle : typeLabels[node.type]}</small></span><ArrowUpRight size={14} className="directory-row-arrow" /></button><span className="directory-school">{schools[node.school]}</span><button className="connection-count" title={format(ui.directory.exploreConnections, { count: getConnections(node.id).length, name: node.name })} onClick={() => focusNode(node)}><Network size={13} />{getConnections(node.id).length}</button><button className={`icon-button row-bookmark ${savedIds.has(node.id) ? 'bookmarked' : ''}`} aria-label={savedIds.has(node.id) ? (page === 'collection' ? format(ui.directory.removeFrom, { name: node.name, collection: labelOf(collection) }) : format(ui.directory.removeFromCollections, { name: node.name })) : format(ui.directory.save, { name: node.name })} onClick={() => quickSave(node)}><Bookmark size={16} fill={savedIds.has(node.id) ? 'currentColor' : 'none'} /></button></div>)}</div> : <div className="directory-empty">{page === 'reading' || page === 'collection' ? <Bookmark size={36} strokeWidth={1.2} /> : <Search size={36} strokeWidth={1.2} />}<h2>{hasFilters ? ui.directory.emptyFilteredTitle : ui.directory.emptyTitle}</h2><p>{hasFilters ? ui.directory.emptyFilteredBody : ui.directory.emptyBody}</p><button className="button button-primary" onClick={hasFilters ? resetFilters : () => navigate('graph')}>{hasFilters ? ui.actions.clearFilters : ui.actions.exploreGraph}<ArrowRight size={15} /></button></div>}
               </div>}
               <div className="canvas-status"><span><i />{focusId ? ui.status.focused : isGraph ? ui.status.graph : format(listNodes.length === 1 ? ui.status.discovery : ui.status.discoveries, { count: listNodes.length })}</span><button onClick={() => setModal('about')}>{isGraph ? ui.status.howToExplore : ui.status.aboutConnections}<CircleHelp size={12} /></button></div>
             </div>
-            {detailsOpen && <><button className="detail-mobile-scrim" aria-label={ui.detail.close} onClick={() => setDetailsOpen(false)} /><DetailPanel node={selectedNode} onSelect={selectNode} onClose={() => setDetailsOpen(false)} onFocus={focusNode} onSave={openSave} saved={savedIds.has(selectedId)} /></>}
+            {askOpen
+              ? <><button className="detail-mobile-scrim" aria-label={ui.ask.close} onClick={closeGuide} /><AskPanel selectedId={selectedId} onClose={closeGuide} onSelect={selectFromGuide} onPlan={applyPlan} onShowPath={showRoute} onSaveCollection={saveGuideCollection} /></>
+              : detailsOpen && <><button className="detail-mobile-scrim" aria-label={ui.detail.close} onClick={() => setDetailsOpen(false)} /><DetailPanel node={selectedNode} onSelect={selectNode} onClose={() => setDetailsOpen(false)} onFocus={focusNode} onSave={openSave} saved={savedIds.has(selectedId)} /></>}
           </motion.div>
           <div className="page-footnote"><span>{ui.status.footnote}</span><button onClick={() => setModal('about')}>{ui.status.curated}<ArrowUpRight size={12} /></button></div>
         </main>
