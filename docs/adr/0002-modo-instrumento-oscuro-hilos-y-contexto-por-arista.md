@@ -42,7 +42,7 @@ largos tratados como objetos («case files») que se abren sobre el mapa.
   se listan los Hilos como rutas válidas.
 - Coste editorial asumido y recurrente: **toda arista o Hilo nuevo exige su texto en
   los tres idiomas** antes de publicarse (igual que ya pasa con los nodos).
-- El build single-file sube a ~672 KB (gzip ~201 KB) con el modo instrumento, los
+- El build single-file sube a ~686 KB (gzip ~205 KB) con el modo instrumento, los
   textos, los planos y la historia móvil. Si el modo se consolida, `Instrumento` deberá compartir el motor de
   `Graph.tsx` o cargarse bajo demanda.
 - El *chrome* del modo instrumento va por `ui.inst` en los tres idiomas (hecho en
@@ -54,3 +54,19 @@ largos tratados como objetos («case files») que se abren sobre el mapa.
   instrumento completo a un toque.
 - Se mantiene SVG con nodos enfocables: no se adopta el canvas del artefacto, que es
   inaccesible por teclado con solo 36 nodos que representar.
+- **Enmienda (2026-10-22), tras la primera revisión de uso**: al convertirse en
+  portada, el instrumento alcanza paridad con la clásica y recupera dos patrones de
+  la referencia que faltaban.
+  - *Sistema vivo*: los nodos derivan de forma continua con fase propia (el bucle
+    pinta a ~24 fps en reposo; `prefers-reduced-motion` lo apaga), las aristas de
+    una ruta (Hilo o guía) fluyen y el anillo del nodo activo pulsa.
+  - *Color diverso*: el nodo lleva **dos codificaciones** —relleno pastel por tipo
+    (como siempre) y **anillo vivo por escuela** (`schoolPalette`, 6 tonos), en
+    ambos mundos; es el análogo de las 9 categorías de color de la referencia.
+  - *Guardar en el instrumento*: las colecciones son un solo almacén
+    (`src/data/collections.ts`) que comparten clásica, instrumento e historia
+    móvil; además se pueden guardar **relaciones** desde el inspector
+    (`foresight-atlas-saved-edges-v1`, se dibujan en dorado).
+  - *Guía IA y «Sorpréndeme»* también en el instrumento (y en la historia móvil):
+    se reutiliza `AskPanel` con piel oscura y sus planes se aplican al grafo
+    (filtros, destacados, ruta, guardar colección).

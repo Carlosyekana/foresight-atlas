@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { edges, nodeShapes, palette, type AtlasNode, type EntityType } from '../data/atlas';
+import { edges, nodeShapes, palette, schoolPalette, type AtlasNode, type EntityType } from '../data/atlas';
+import { appendCollection, DEFAULT_COLLECTION_ID, readCollections, toggleNodeInCollections, writeCollections, type Collection } from '../data/collections';
+import AskPanel from '../components/AskPanel';
+import { askEnabled } from '../ai/client';
 import { format, useI18n } from '../i18n';
 import Blueprint from './Blueprint';
 import './instrumento.css';
@@ -31,6 +34,9 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
   const [history, setHistory] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<EntityType | 'all'>('all');
+  const [collections, setCollections] = useState<Collection[]>(readCollections);
+  const [askOpen, setAskOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLElement>(null);
   const savedScroll = useRef(0);
@@ -52,10 +58,27 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
   useEffect(() => {
     if (pageNodeId) { savedScroll.current = scrollRef.current?.scrollTop ?? 0; }
   }, [pageNodeId]);
+  useEffect(() => { writeCollections(collections); }, [collections]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+  const savedIds = useMemo(() => new Set(collections.flatMap((item) => item.nodeIds)), [collections]);
 
   function openNode(id: string) {
     if (pageNodeId && pageNodeId !== id) setHistory((stack) => [...stack.slice(-11), pageNodeId]);
     setPageNodeId(id);
+  }
+  function toggleSave(node: AtlasNode) {
+    const wasSaved = savedIds.has(node.id);
+    setCollections((current) => toggleNodeInCollections(current, node.id));
+    setNotice(wasSaved ? format(ui.toasts.removed, { name: node.name }) : ui.detail.savedToCollection);
+  }
+  function surprise() {
+    const options = nodes.filter((node) => node.id !== pageNodeId);
+    const node = options[Math.floor(Math.random() * options.length)];
+    if (node) { openNode(node.id); setNotice(format(ui.toasts.newThread, { name: node.name })); }
   }
   function goBack() {
     const previous = history[history.length - 1];
@@ -69,8 +92,8 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
     const connections = getConnections(node.id);
     return <div className="inst">
       <button className="ph-back" onClick={goBack}>{t.phBack}{history.length ? ` · ${nodeById.get(history[history.length - 1])?.name}` : ''}</button>
-      <div className="ph-nodepage" role="document">
-        <span className="tiny" style={{ color: palette[node.type].stroke }}>● {codeOf(node)} · {typeLabels[node.type]}</span>
+      <div className="ph-nodepage" role="document" key={node.id}>
+        <span className="tiny" style={{ color: schoolPalette[node.school].stroke }}>● {codeOf(node)} · {typeLabels[node.type]}</span>
         <h1>{node.name}</h1>
         <p className="inst-dossier-sub">{node.subtitle}</p>
         <dl className="inst-kv">
@@ -80,11 +103,12 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
         </dl>
         <p className="inst-prose">{node.description}</p>
         {node.question && <blockquote className="inst-quote"><span>{ui.detail.questionLabel}</span>{node.question}</blockquote>}
+        <button className={`inst-cta ${savedIds.has(node.id) ? 'saved' : ''}`} aria-pressed={savedIds.has(node.id)} onClick={() => toggleSave(node)}>{savedIds.has(node.id) ? `✓ ${ui.detail.savedToCollection}` : `＋ ${ui.detail.saveToCollection}`}</button>
         {blueprints.has(node.id) && <button className="inst-cta solid" onClick={() => setBlueprintNodeId(node.id)}>{t.openBlueprint} · {blueprints.get(node.id)!.code}</button>}
         <section className="inst-sec">
           <h4>{t.relations} <span>{connections.length}</span></h4>
           {connections.map((item) => <button key={item.node.id} className="inst-rel" onClick={() => openNode(item.node.id)}>
-            <span className="cdot" style={{ width: 8, height: 8, borderRadius: '50%', background: palette[item.node.type].fill, border: `1px solid ${palette[item.node.type].stroke}`, alignSelf: 'center' }} />
+            <span className="cdot" style={{ width: 8, height: 8, borderRadius: '50%', background: palette[item.node.type].fill, border: `1.5px solid ${schoolPalette[item.node.school].stroke}`, alignSelf: 'center' }} />
             <span className="who">{item.node.name}</span><span className="yr">{item.node.publicationYear}</span>
             <span className="what">{item.relation}{item.edge.reference ? ` · ${t.directSource}` : ` · ${t.editorialAssoc}`}</span>
             {item.context && <span className="ctx">{item.context}</span>}
@@ -96,6 +120,8 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
           <div className="inst-srcs"><a href={node.publication.url} target="_blank" rel="noreferrer">{t.publication}</a><a href={node.source} target="_blank" rel="noreferrer">{t.source}</a></div>
         </section>
       </div>
+      {notice && <div className="inst-toast" role="status">{notice}</div>}
+      {askOpen && askEnabled && <div className="inst-ask"><AskPanel selectedId={pageNodeId} onClose={() => setAskOpen(false)} onSelect={(node) => { setAskOpen(false); openNode(node.id); }} onPlan={(plan) => { if (plan.filters.type !== 'all') setTypeFilter(plan.filters.type); }} onShowPath={(ids) => { setAskOpen(false); if (ids[0]) openNode(ids[0]); }} onSaveCollection={(name, ids) => { const result = appendCollection(collections, name, ids, (item) => (item.id === DEFAULT_COLLECTION_ID ? ui.defaultCollection : item.name)); setCollections(result.collections); setNotice(format(ui.ask.collectionSaved, { name: result.name, count: ids.length })); }} /></div>}
       {blueprintNode && <Blueprint node={blueprintNode} onClose={() => setBlueprintNodeId(null)} onGoNode={(id) => { setBlueprintNodeId(null); openNode(id); }} />}
     </div>;
   }
@@ -106,6 +132,8 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
       <b>FORESIGHT <i>ATLAS</i></b>
       <nav>
         <button onClick={() => fieldRef.current?.scrollIntoView({ behavior: 'smooth' })}>{t.phField.toUpperCase()}</button>
+        <button onClick={surprise} title={ui.actions.surprise} aria-label={ui.actions.surprise}>⚄</button>
+        {askEnabled && <button onClick={() => setAskOpen(true)} title={ui.ask.open} aria-label={ui.ask.open}>✦</button>}
         <button onClick={onExitClassic}>{t.classicView}</button>
       </nav>
     </div>
@@ -118,7 +146,7 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
           return <line key={i} x1={a.x} y1={a.y * 0.88 + 16} x2={b.x} y2={b.y * 0.88 + 16} stroke="#3c5745" strokeWidth={1} opacity={0.7} />;
         })}
         {nodes.map((node) => <g key={node.id} onClick={() => openNode(node.id)} style={{ cursor: 'pointer' }}>
-          <circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius * 0.95} fill={palette[node.type].fill} stroke={palette[node.type].stroke} strokeWidth={1.4} />
+          <circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius + 18} fill="transparent" /><circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius * 0.95} fill={palette[node.type].fill} stroke={schoolPalette[node.school].stroke} strokeWidth={2.2} />
           {(degree.get(node.id) ?? 0) >= 4 && <text x={node.x} y={node.y * 0.88 + 16 + node.radius + 14} textAnchor="middle" className="inst-node-label">{node.name}</text>}
         </g>)}
       </svg>
@@ -197,9 +225,9 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
         {listNodes.length === 0 && <p className="ph-none">{t.phNoResults}</p>}
         <div>
           {listNodes.map((node) => <button key={node.id} className="ph-row" onClick={() => openNode(node.id)}>
-            <i style={{ background: palette[node.type].stroke }} />
+            <i style={{ background: schoolPalette[node.school].stroke }} />
             <span className="n">{node.name}<small>{node.subtitle}</small></span>
-            <span className="d">{degree.get(node.id)}<small>{node.publicationYear}</small></span>
+            <span className="d">{savedIds.has(node.id) ? '★ ' : ''}{degree.get(node.id)}<small>{node.publicationYear}</small></span>
           </button>)}
         </div>
       </section>
@@ -212,6 +240,8 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
       </div>
     </div>
 
+    {notice && <div className="inst-toast" role="status">{notice}</div>}
+    {askOpen && askEnabled && <div className="inst-ask"><AskPanel selectedId={pageNodeId} onClose={() => setAskOpen(false)} onSelect={(node) => { setAskOpen(false); openNode(node.id); }} onPlan={(plan) => { if (plan.filters.type !== 'all') setTypeFilter(plan.filters.type); }} onShowPath={(ids) => { setAskOpen(false); if (ids[0]) openNode(ids[0]); }} onSaveCollection={(name, ids) => { const result = appendCollection(collections, name, ids, (item) => (item.id === DEFAULT_COLLECTION_ID ? ui.defaultCollection : item.name)); setCollections(result.collections); setNotice(format(ui.ask.collectionSaved, { name: result.name, count: ids.length })); }} /></div>}
     {blueprintNode && <Blueprint node={blueprintNode} onClose={() => setBlueprintNodeId(null)} onGoNode={(id) => { setBlueprintNodeId(null); openNode(id); }} />}
   </div>;
 }

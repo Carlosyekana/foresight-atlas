@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Maximize2, Minimize2, Minus, Network, Plus, Scan, X } from 'lucide-react';
-import { palette, type AtlasEdge, type AtlasNode } from '../data/atlas';
+import { palette, schoolPalette, type AtlasEdge, type AtlasNode } from '../data/atlas';
 import { useI18n } from '../i18n';
 
 export interface GraphSettings {
@@ -271,7 +271,7 @@ export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onC
                 <motion.circle r={node.radius + 13} fill="none" stroke={color.stroke} strokeWidth="1" initial={{ opacity: 0.2 }}
                   animate={{ opacity: reduceMotion ? 0.35 : [0.15, 0.55, 0.15] }} transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }} />
               </>}
-              <circle className="node-core" r={node.radius} fill={selected ? node.type === 'author' ? '#a488c2' : node.type === 'concept' ? '#81a88b' : '#c8a672' : color.fill} stroke={selected ? color.ink : color.stroke} strokeWidth={selected ? 1.3 : 1.1} />
+              <circle className="node-core" r={node.radius} fill={selected ? node.type === 'author' ? '#a488c2' : node.type === 'concept' ? '#81a88b' : '#c8a672' : color.fill} stroke={selected ? color.ink : schoolPalette[node.school].ink} strokeWidth={selected ? 1.3 : 2} />
               {node.type === 'author'
                 ? <text textAnchor="middle" dominantBaseline="central" fill={selected ? '#ffffff' : color.ink} fontSize={node.radius * 0.64} fontWeight="600" fontFamily="Manrope, sans-serif" pointerEvents="none">{node.initials}</text>
                 : node.type === 'method'
@@ -311,7 +311,7 @@ export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onC
       }}>
         <svg viewBox={`-30 -20 ${W + 60} ${H + 40}`} aria-hidden="true">
           {edges.map((edge) => { const a = layout.get(edge.source); const b = layout.get(edge.target); return a && b ? <line key={`${edge.source}-${edge.target}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#d5ddd0" strokeWidth="5" /> : null; })}
-          {nodes.map((node) => { const point = layout.get(node.id)!; return <circle key={node.id} cx={point.x} cy={point.y} r={node.id === selectedId ? 18 : 11} fill={palette[node.type].stroke} />; })}
+          {nodes.map((node) => { const point = layout.get(node.id)!; return <circle key={node.id} cx={point.x} cy={point.y} r={node.id === selectedId ? 18 : 11} fill={schoolPalette[node.school].ink} />; })}
           <rect x={W / 2 + (-W / 2 - view.x) / view.k} y={H / 2 + (-H / 2 - view.y) / view.k} width={W / view.k} height={H / view.k} fill="#648768" fillOpacity="0.03" stroke="#8aa488" strokeWidth="10" rx="20" />
         </svg>
       </button>
