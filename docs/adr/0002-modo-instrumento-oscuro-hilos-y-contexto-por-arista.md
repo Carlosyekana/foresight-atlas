@@ -25,9 +25,14 @@ largos tratados como objetos («case files») que se abren sobre el mapa.
    en los tres idiomas: 62 relaciones × 3. Se muestra en el inspector de relación del
    modo instrumento, bajo cada conexión del panel clásico, en las fuentes del informe
    en papel de cada Hilo y en el prompt de la guía IA.
-4. **El modo instrumento convive, no sustituye (todavía).** Vive en `#/instrumento`
-   (`src/instrument/`) con puerta oscura desde la navegación clásica. Si desplaza a la
-   vista actual como portada se decidirá tras usarlo y medirlo (fase 3 del informe).
+4. **El modo instrumento convive, no sustituye.** Vive en `#/instrumento`
+   (`src/instrument/`) con puerta oscura desde la navegación clásica.
+   **Enmienda (2026-10-22): pasa a ser la portada.** La raíz del sitio abre el
+   instrumento (en el teléfono, su historia); la vista clásica clara queda en
+   `#/clasico`, enlazada en ambos sentidos. La guía IA, las colecciones y la
+   exportación siguen viviendo en la vista clásica: es el taller; el instrumento
+   es la sala de lectura. La intro cinemática se muestra una vez por sesión y
+   nunca ante un enlace profundo.
 
 ## Consecuencias
 
@@ -46,7 +51,6 @@ largos tratados como objetos («case files») que se abren sobre el mapa.
   textos en `content.*.ts`). La **historia móvil** (patrón N12) también está hecha:
   en ≤760 px, `Phone.tsx` sustituye el instrumento por un scroll narrado (hero con
   el grafo de fondo, secciones numeradas, dossiers a página completa) con el
-  instrumento completo a un toque. Pendiente: decidir si el modo oscuro pasa a ser
-  la portada del Atlas.
+  instrumento completo a un toque.
 - Se mantiene SVG con nodos enfocables: no se adopta el canvas del artefacto, que es
   inaccesible por teclado con solo 36 nodos que representar.

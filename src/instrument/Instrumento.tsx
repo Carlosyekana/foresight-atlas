@@ -6,7 +6,8 @@ import Phone from './Phone';
 import './instrumento.css';
 
 /**
- * «Modo instrumento» — la lectura oscura del Atlas, tras #/instrumento.
+ * «Modo instrumento» — la lectura oscura del Atlas y su portada desde el ADR 0002
+ * (la vista clásica clara vive en #/clasico).
  * Traslada los patrones narrativos de BL00D.MONEY
  * (docs/ingenieria-inversa/01-*.md, ADR 0002) sobre los datos reales:
  * mundo full-bleed, modos-pregunta, zoom semántico, dossier-campo,
@@ -53,7 +54,11 @@ export default function Instrumento() {
   const { lang, ui, nodes, nodeById, getConnections, schools, typeLabels, typePlurals, matchesSearch, edgeContext, threads, blueprints } = useI18n();
   const t = ui.inst;
   const MODE_LABEL: Record<Mode, string> = { red: t.modeNetwork, orbita: t.modeOrbit, escuelas: t.modeSchools, cronologia: t.modeTimeline };
-  const [intro, setIntro] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [intro, setIntro] = useState(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+    if (window.location.hash.includes('?')) return false; // deep link: straight to the point
+    try { return sessionStorage.getItem('fa-intro-seen') !== '1'; } catch { return true; }
+  });
   const [mode, setMode] = useState<Mode>('red');
   const [labels, setLabels] = useState<LabelMode>('key');
   const [selectedId, setSelectedId] = useState<string | null>(() => {
@@ -113,10 +118,21 @@ export default function Instrumento() {
     return () => query.removeEventListener('change', onChange);
   }, []);
 
+  function finishIntro() {
+    setIntro(false);
+    try { sessionStorage.setItem('fa-intro-seen', '1'); } catch { /* session only */ }
+  }
+
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (meta) meta.content = '#0a120d';
+    return () => { if (meta) meta.content = '#f8faf5'; }; // the classic workspace is light
+  }, []);
+
   /* ---------- intro cinemática ---------- */
   useEffect(() => {
     if (!intro) return;
-    const timer = window.setTimeout(() => setIntro(false), 3000);
+    const timer = window.setTimeout(finishIntro, 3000);
     return () => window.clearTimeout(timer);
   }, [intro]);
 
@@ -243,7 +259,7 @@ export default function Instrumento() {
     if (next === 'orbita' && !selectedId) { setSelectedId('inayatullah'); setPanel('nodo'); }
     setMode(next); setInsp(null);
   }
-  function exitPrototype() { window.location.hash = ''; }
+  function exitPrototype() { window.location.hash = '#/clasico'; }
 
   /* ---------- conjuntos derivados ---------- */
   const visibleNodes = nodes.filter((node) => !hiddenTypes.has(node.type) && (schoolFilter === 'all' || node.school === schoolFilter));
@@ -491,7 +507,7 @@ export default function Instrumento() {
       <h1>{t.introTitleA} <em>{t.introTitleB}</em></h1>
       <p>{format(t.introMeta, { nodes: nodes.length, edges: edges.length })}</p>
     </div></div>
-    <button className="inst-skip" aria-label={t.skipIntro} title={t.skipIntro} onClick={() => setIntro(false)}>»</button>
+    <button className="inst-skip" aria-label={t.skipIntro} title={t.skipIntro} onClick={finishIntro}>»</button>
 
     <header>
       <button className="inst-mark" onClick={() => { setSelectedId(null); setPanel('campo'); }}><b>FORESIGHT <i>ATLAS</i></b><span className="tiny">{t.brandSub}</span></button>

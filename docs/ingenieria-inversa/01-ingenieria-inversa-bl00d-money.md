@@ -282,8 +282,10 @@ panel clásico y en el prompt de la guía). Fase 3 (parcial) ✅: chrome del ins
 localizado vía `ui.inst` y «planos» de métodos (T11) para CLA, Seis Pilares, Tres
 Horizontes y Triángulo de Futuros, enlazados también desde el panel clásico; y la
 historia móvil (T12): en ≤760 px el instrumento es un scroll narrado con el grafo
-como fondo del hero (`src/instrument/Phone.tsx`). Queda una sola decisión abierta:
-si el instrumento desplaza a la vista clara como portada.
+como fondo del hero (`src/instrument/Phone.tsx`). Y la decisión de portada también
+se cerró: **el instrumento oscuro es la entrada del Atlas**; la vista clara queda
+en `#/clasico` como taller (guía IA, colecciones, exportación). El plan de
+traslado queda así ejecutado por completo.
 
 ---
 
