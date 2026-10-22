@@ -101,6 +101,14 @@ export default function Instrumento() {
   const dragRef = useRef<{ startX: number; startY: number; view: typeof view; moved: boolean } | null>(null);
   const pointersRef = useRef(new Map<number, Point>());
   const pinchRef = useRef<{ distance: number; center: Point; view: typeof view } | null>(null);
+  // El SVG captura el puntero (setPointerCapture) para que la pinza y el paneo sigan
+  // recibiendo movimientos aunque el dedo salga del lienzo; a cambio, el navegador
+  // redirige el clic final al propio SVG y los onClick de nodos/aristas nunca llegan.
+  // Por eso el objetivo se resuelve al apretar (como en Graph.tsx) y la acción se
+  // ejecuta al soltar, sin movimiento. suppressClick evita que el clic redirigido
+  // al SVG cierre lo que acabamos de abrir.
+  const pressRef = useRef<{ nodeId: string | null; edge: AtlasEdge | null } | null>(null);
+  const suppressClickRef = useRef(false);
 
   const selected = selectedId ? nodeById.get(selectedId) : undefined;
   const activeThread: AtlasThread | undefined = threads.find((thread) => thread.id === threadId);
@@ -533,15 +541,21 @@ export default function Instrumento() {
     <svg ref={svgRef} className="inst-net" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t.introKicker}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
+        suppressClickRef.current = false;
         pointersRef.current.set(event.pointerId, svgPoint(event.clientX, event.clientY));
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* pointer ya liberado */ }
         if (pointersRef.current.size === 2) {
           const [a, b] = [...pointersRef.current.values()];
           pinchRef.current = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, view };
           if (dragRef.current) dragRef.current.moved = true; // la pinza no debe terminar en "clic" sobre un nodo
+          pressRef.current = null;
           return;
         }
-        if (pointersRef.current.size > 2) return;
+        if (pointersRef.current.size > 2) { pressRef.current = null; return; }
+        const target = event.target as Element;
+        const nodeId = target.closest('[data-node]')?.getAttribute('data-node') ?? null;
+        const edgeKey = !nodeId ? target.closest('[data-edge]')?.getAttribute('data-edge') : null;
+        pressRef.current = { nodeId, edge: edgeKey ? edges.find((edge) => edgeId(edge) === edgeKey) ?? null : null };
         dragRef.current = { startX: event.clientX, startY: event.clientY, view, moved: false };
       }}
       onPointerMove={(event) => {
@@ -565,12 +579,18 @@ export default function Instrumento() {
         setView({ ...drag.view, x: drag.view.x + dx / drag.view.k, y: drag.view.y + dy / drag.view.k });
       }}
       onPointerUp={(event) => {
+        const wasPinching = !!pinchRef.current;
         pointersRef.current.delete(event.pointerId);
         if (pointersRef.current.size < 2) pinchRef.current = null;
+        const press = pressRef.current; pressRef.current = null;
+        if (press && !wasPinching && !dragRef.current?.moved) {
+          if (press.nodeId) { go(press.nodeId); suppressClickRef.current = true; }
+          else if (press.edge) { const rect = rootRef.current!.getBoundingClientRect(); setInsp({ edge: press.edge, x: event.clientX - rect.left, y: event.clientY - rect.top }); suppressClickRef.current = true; }
+        }
         window.setTimeout(() => { dragRef.current = null; }, 0);
       }}
-      onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); pinchRef.current = null; dragRef.current = null; }}
-      onClick={() => { setInsp(null); if (askPath.length || askHighlight.length) clearAskFocus(); }}>
+      onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); pinchRef.current = null; dragRef.current = null; pressRef.current = null; }}
+      onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (dragRef.current?.moved) return; setInsp(null); if (askPath.length || askHighlight.length) clearAskFocus(); }}>
       <g transform={`translate(${W / 2} ${H / 2}) scale(${view.k}) translate(${-W / 2 + view.x} ${-H / 2 + view.y})`}>
         {mode === 'cronologia' && [1970, 1985, 2000, 2015].map((year) => {
           const x = 80 + ((year - 1962) / 62) * 810;
@@ -588,7 +608,7 @@ export default function Instrumento() {
           const opacity = inRoute ? 1 : dimmed(edge.source) && dimmed(edge.target) ? 0.14 : inFocus ? 0.95 : isSavedEdge ? 0.85 : 0.4;
           return <g key={i} opacity={opacity}>
             <line className={inRoute ? 'inst-edge-flow' : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={inRoute ? '#b7f04a' : inFocus ? '#cfe3c2' : isSavedEdge ? '#ffc93c' : '#435c48'} strokeWidth={inRoute ? 2.2 : isSavedEdge ? 1.6 : 1} />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={coarsePointer ? 32 : 13} style={{ cursor: 'pointer' }}
+            <line data-edge={edgeId(edge)} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={coarsePointer ? 32 : 13} style={{ cursor: 'pointer' }}
               onClick={(event) => {
                 event.stopPropagation();
                 const rect = rootRef.current!.getBoundingClientRect();
@@ -600,7 +620,7 @@ export default function Instrumento() {
           const point = positions.get(node.id); if (!point) return null;
           const radius = node.radius * 0.82;
           const stepIndex = activeThread ? activeThread.path.indexOf(node.id) : -1;
-          return <g key={node.id} className="inst-node" transform={`translate(${point.x} ${point.y})`} opacity={dimmed(node.id) ? 0.16 : 1}
+          return <g key={node.id} className="inst-node" data-node={node.id} transform={`translate(${point.x} ${point.y})`} opacity={dimmed(node.id) ? 0.16 : 1}
             onMouseEnter={() => setHovered(node.id)} onMouseLeave={() => setHovered(null)}
             onClick={(event) => { event.stopPropagation(); if (!dragRef.current?.moved) go(node.id); }}>
             <circle r={radius + (coarsePointer ? 16 : 6)} fill="transparent" />
