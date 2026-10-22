@@ -9,6 +9,10 @@ Un grafo de conocimiento interactivo que conecta autores, conceptos y métodos d
 - **36 nodos y 62 conexiones** curados a mano: 14 autores, 22 conceptos y métodos.
 - **Tres idiomas completos**: interfaz, nombres de conceptos, descripciones, preguntas y etiquetas de relación. La elección se recuerda en el navegador y actualiza el atributo `lang` del documento.
 - **Grafo SVG interactivo** con zoom, paneo, arrastre de nodos, minimapa y vista enfocada sobre un nodo y sus vecinos.
+- **Cada conexión explica su porqué**: una frase de contexto por arista en los tres idiomas, visible en el perfil de cada nodo.
+- **Hilos**: 4 rutas de lectura curadas sobre conexiones reales (escenarios, crítica, sistemas, futuros experienciales).
+- **Planos de métodos**: 4 diagramas técnicos despiezables (Análisis Causal por Capas, Seis Pilares, Tres Horizontes y Triángulo de Futuros) con piezas inspeccionables que enlazan de vuelta al grafo, en los tres idiomas.
+- **Modo instrumento oscuro** — **es la portada del Atlas** (la vista clásica clara vive en `#/clasico`, enlazada desde ambas): el grafo a pantalla completa con cuatro aparatos de lectura —red, órbita, escuelas y cronología—, relaciones inspeccionables y los Hilos como expedientes en papel. En el teléfono (≤760 px) se convierte en una **historia vertical**: hero con el grafo de fondo y secciones numeradas (el campo, los Hilos, los planos y un índice táctil). La intro cinemática se muestra una vez por sesión y los enlaces profundos (`#/instrumento?node=cla&blueprint=1`, `?thread=critica`) van directos al punto. Nace de la ingeniería inversa documentada en [`docs/ingenieria-inversa/`](docs/ingenieria-inversa/01-ingenieria-inversa-bl00d-money.md) y del [ADR 0002](docs/adr/0002-modo-instrumento-oscuro-hilos-y-contexto-por-arista.md).
 - **Vista de lista** ordenable por nombre o por número de conexiones.
 - **Filtros** por tipo (autor / concepto / método) y por escuela de pensamiento, más búsqueda con sugerencias (`/` o `Cmd+K`).
 - **Colecciones** guardadas en `localStorage` del navegador, sin cuenta ni backend.
@@ -30,7 +34,7 @@ La decisión de arquitectura está razonada en [`docs/adr/0001-capa-semantica-ia
 
 React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Framer Motion · lucide-react · Cloudflare Workers + Gemini para la guía
 
-La compilación usa `vite-plugin-singlefile`, así que `dist/index.html` es un **único archivo autocontenido** (~446 KB, ~138 KB gzip) que funciona abriéndolo directamente o subiéndolo a cualquier hosting estático.
+La compilación usa `vite-plugin-singlefile`, así que `dist/index.html` es un **único archivo autocontenido** (~672 KB, ~201 KB gzip) que funciona abriéndolo directamente o subiéndolo a cualquier hosting estático.
 
 ## Desarrollo
 
@@ -49,6 +53,11 @@ src/
   App.tsx                 estado de la aplicación, navegación, filtros, modales
   components/
     Graph.tsx             grafo SVG: layout, zoom/paneo/pinch, minimapa, rutas
+  instrument/
+    Instrumento.tsx       modo instrumento oscuro: modos, HUD, inspector, Hilos
+    Blueprint.tsx         planos despiezables de métodos (patrón «arsenal»)
+    Phone.tsx             la historia móvil: scroll narrado en ≤760 px
+    instrumento.css       sistema visual del instrumento (todo bajo .inst)
     AskPanel.tsx          la guía: conversación, fichas de nodos, recorridos
     DetailPanel.tsx       perfil del nodo seleccionado y sus conexiones
     Modal.tsx             diálogo accesible con foco atrapado
@@ -57,7 +66,7 @@ src/
     contract.ts           petición y plan compartidos con el Worker; validación de ids
     prompt.ts             el atlas serializado al prompt del sistema
     client.ts             llamada al Worker desde el navegador
-  data/atlas.ts           estructura: ids, posiciones, tipos y enlaces
+  data/atlas.ts           estructura: ids, posiciones, tipos, enlaces e Hilos
   i18n/
     index.tsx             contexto de idioma y ensamblado del atlas
     types.ts              forma de los diccionarios
@@ -73,7 +82,7 @@ La **estructura** del grafo y su **texto** están separados a propósito: [`src/
 
 1. Agrega su forma a `nodeShapes` en [`src/data/atlas.ts`](src/data/atlas.ts) (id, tipo, escuela, posición, radio, año y URL de la publicación).
 2. Agrega sus aristas a `edges`, usando una `relation` de las ya definidas en `relationKeys`.
-3. Agrega su texto con el mismo id en los tres archivos `content.*.ts`.
+3. Agrega su texto con el mismo id en los tres archivos `content.*.ts`, incluida la frase de contexto de cada arista nueva en `edgeContexts` (clave `origen--destino`).
 
 TypeScript exige el paso 3: si falta el id en algún idioma, la compilación falla. No se puede publicar un nodo a medio traducir.
 

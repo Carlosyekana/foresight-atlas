@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
-import { AlignLeft, ArrowDownAZ, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Compass, Download, FileJson, Folder, FolderPlus, Image, Languages, Layers3, Menu, Network, PanelRightOpen, Plus, Search, Settings2, Shapes, Shuffle, Sparkles, UsersRound, X } from 'lucide-react';
+import { AlignLeft, ArrowDownAZ, ArrowRight, ArrowUpRight, BookOpen, Bookmark, Check, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Compass, Download, FileJson, Folder, FolderPlus, Image, Languages, Layers3, Menu, Moon, Network, PanelRightOpen, Plus, Search, Settings2, Shapes, Shuffle, Sparkles, UsersRound, X } from 'lucide-react';
 import Graph, { type GraphSettings } from './components/Graph';
 import AskPanel from './components/AskPanel';
 import DetailPanel from './components/DetailPanel';
@@ -57,7 +57,7 @@ async function downloadFile(content: string, name: string, type: string) {
 }
 
 export default function App() {
-  const { lang, setLang, ui, schools, typeLabels, typePlurals, nodes, nodeById, getConnections, matchesSearch } = useI18n();
+  const { lang, setLang, ui, schools, typeLabels, typePlurals, nodes, nodeById, getConnections, matchesSearch, edgeContext, threads } = useI18n();
   const [page, setPage] = useState<Page>('graph');
   const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph');
   const [selectedId, setSelectedId] = useState('inayatullah');
@@ -257,9 +257,11 @@ export default function App() {
         nodes: visibleNodes,
         links: visibleEdges.map((edge) => ({
           ...edge,
+          context: edgeContext(edge),
           evidence: edge.reference ? 'direct-reference' : nodeById.get(edge.source)?.type === 'author' ? 'author-background' : 'editorial-association',
           reference: edge.reference || (nodeById.get(edge.source)?.type === 'author' ? nodeById.get(edge.source)?.source : null),
         })),
+        threads,
       };
       delivered = await downloadFile(JSON.stringify(data, null, 2), `foresight-atlas-${lang}.json`, 'application/json');
     }
@@ -283,6 +285,7 @@ export default function App() {
             <button className={page === 'authors' ? 'nav-item active' : 'nav-item'} onClick={() => navigate('authors')} title={ui.nav.authors}><UsersRound size={18} /><span>{ui.nav.authors}</span><small>{authorCount}</small></button>
             <button className={page === 'concepts' ? 'nav-item active' : 'nav-item'} onClick={() => navigate('concepts')} title={ui.nav.concepts}><Shapes size={18} /><span>{ui.nav.concepts}</span><small>{ideaCount}</small></button>
             <button className={page === 'reading' ? 'nav-item active' : 'nav-item'} onClick={() => navigate('reading')} title={ui.nav.reading}><BookOpen size={18} /><span>{ui.nav.reading}</span>{savedIds.size > 0 && <small>{savedIds.size}</small>}</button>
+            <button className="nav-item instrument-item" onClick={() => { window.location.hash = '#/instrumento'; }} title={ui.nav.instrument}><Moon size={18} /><span>{ui.nav.instrument}</span><small>HIL×4</small></button>
           </nav>
           <div className="collections-label"><span className="nav-section-label">{ui.nav.yourCollections}</span><button className="icon-button" title={ui.nav.createCollection} aria-label={ui.nav.createCollection} onClick={openCreate}><Plus size={15} /></button></div>
           <nav className="collection-nav" aria-label={ui.nav.yourCollections}>{collections.map((item) => <button key={item.id} title={labelOf(item)} className={`nav-item collection-item ${page === 'collection' && activeCollection === item.id ? 'active' : ''}`} onClick={() => navigate('collection', item.id)}><Folder size={17} /><span>{labelOf(item)}</span><small>{item.nodeIds.length}</small></button>)}</nav>

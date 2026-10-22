@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { edges, nodeShapes, type AtlasNode } from '../data/atlas';
+import { blueprintShapes, edgeId, edges, nodeShapes, threadShapes, type AtlasEdge, type AtlasNode, type BlueprintShape, type ThreadShape } from '../data/atlas';
 import { contentEn } from './content.en';
 import { contentEs } from './content.es';
 import { contentPt } from './content.pt';
@@ -65,6 +65,18 @@ const searchIndex = new Map<string, string>(
   ]),
 );
 
+/** A Plano with part texts resolved and zipped with their node links. */
+export interface AtlasBlueprint extends Omit<BlueprintShape, 'links'> {
+  parts: { title: string; body: string; example?: string; link: string | null }[];
+}
+
+/** A Hilo with its text resolved for the active language. */
+export interface AtlasThread extends ThreadShape {
+  title: string;
+  dek: string;
+  steps: Record<string, string>;
+}
+
 export interface I18n {
   lang: Language;
   setLang: (lang: Language) => void;
@@ -74,7 +86,13 @@ export interface I18n {
   typePlurals: ContentDict['typePlurals'];
   nodes: AtlasNode[];
   nodeById: Map<string, AtlasNode>;
-  getConnections: (id: string) => { node: AtlasNode; relation: string }[];
+  /** Connections carry the edge itself plus its one-sentence context. */
+  getConnections: (id: string) => { node: AtlasNode; relation: string; context: string; edge: AtlasEdge }[];
+  /** The plain sentence that says why an edge exists, in the active language. */
+  edgeContext: (edge: AtlasEdge) => string;
+  threads: AtlasThread[];
+  /** Method blueprints keyed by the method's node id. */
+  blueprints: Map<string, AtlasBlueprint>;
   matchesSearch: (node: AtlasNode, query: string) => boolean;
 }
 
@@ -110,7 +128,17 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
           .map((edge) => ({
             node: nodeById.get(edge.source === id ? edge.target : edge.source)!,
             relation: edge.source === id ? dict.relations[edge.relation].forward : dict.relations[edge.relation].inverse,
+            context: dict.edgeContexts[edgeId(edge)] ?? '',
+            edge,
           })),
+      edgeContext: (edge) => dict.edgeContexts[edgeId(edge)] ?? '',
+      threads: threadShapes.map((shape) => ({ ...shape, ...dict.threads[shape.id] })),
+      blueprints: new Map(blueprintShapes.map((shape) => [shape.nodeId, {
+        nodeId: shape.nodeId,
+        code: shape.code,
+        kind: shape.kind,
+        parts: (dict.blueprints[shape.nodeId]?.parts ?? []).map((part, index) => ({ ...part, link: shape.links[index] ?? null })),
+      }])),
       matchesSearch: (node, query) => {
         const search = query.trim().toLowerCase();
         if (!search) return true;

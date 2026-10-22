@@ -304,3 +304,48 @@ export const edges: AtlasEdge[] = [
 ];
 
 export const shapeById = new Map(nodeShapes.map((node) => [node.id, node]));
+
+/** Stable key for one edge, used to look up its context sentence per language. */
+export function edgeId(edge: AtlasEdge): string {
+  return `${edge.source}--${edge.target}`;
+}
+
+/**
+ * A Hilo ("thread") is a curated reading route. Structure only: the title, dek
+ * and step notes live in `src/i18n/content.<lang>.ts`, keyed by `id`, with one
+ * step note per node id in `path`. Every consecutive pair is a real edge.
+ */
+export interface ThreadShape {
+  id: string;
+  /** File-style code shown in the instrument, e.g. HIL-01. Language-neutral. */
+  code: string;
+  path: string[];
+}
+
+export const threadShapes: ThreadShape[] = [
+  { id: 'escenarios', code: 'HIL-01', path: ['kahn', 'scenario-planning', 'alternative-futures', 'dator', 'images-of-future'] },
+  { id: 'critica', code: 'HIL-02', path: ['slaughter', 'integral-futures', 'critical-futures', 'cla', 'six-pillars'] },
+  { id: 'sistemas', code: 'HIL-03', path: ['meadows', 'leverage-points', 'systems-thinking', 'three-horizons', 'backcasting'] },
+  { id: 'tocar', code: 'HIL-04', path: ['dunne', 'speculative-design', 'experiential-futures', 'futures-literacy', 'miller'] },
+];
+
+/**
+ * A Plano ("blueprint") is an exploded diagram of one method. Structure only:
+ * part titles/bodies live in `content.<lang>.ts` under `blueprints[nodeId]`,
+ * aligned by position with `links` (the node each part points to, if any).
+ */
+export type BlueprintKind = 'layers' | 'pillars' | 'horizons' | 'triangle';
+
+export interface BlueprintShape {
+  nodeId: string;
+  code: string;
+  kind: BlueprintKind;
+  links: (string | null)[];
+}
+
+export const blueprintShapes: BlueprintShape[] = [
+  { nodeId: 'cla', code: 'PLN-01', kind: 'layers', links: ['critical-futures', 'systems-thinking', 'images-of-future', 'preferred-futures'] },
+  { nodeId: 'six-pillars', code: 'PLN-02', kind: 'pillars', links: ['futures-triangle', 'horizon-scanning', null, 'cla', 'scenario-planning', 'preferred-futures'] },
+  { nodeId: 'three-horizons', code: 'PLN-03', kind: 'horizons', links: ['systems-thinking', 'wild-cards', 'backcasting'] },
+  { nodeId: 'futures-triangle', code: 'PLN-04', kind: 'triangle', links: ['images-of-future', 'horizon-scanning', 'preferred-futures'] },
+];
