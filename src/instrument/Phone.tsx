@@ -17,6 +17,10 @@ import './instrumento.css';
 
 const CODE_PREFIX: Record<EntityType, string> = { author: 'AUT', concept: 'CON', method: 'MET' };
 const codeOf = (node: AtlasNode) => `${CODE_PREFIX[node.type]}-${String(nodeShapes.findIndex((shape) => shape.id === node.id) + 1).padStart(3, '0')}`;
+const FIELD_YEARS = nodeShapes
+  .map((shape) => Number.parseInt(shape.publicationYear, 10))
+  .filter(Number.isFinite);
+const FIELD_YEAR_RANGE = { start: Math.min(...FIELD_YEARS), end: Math.max(...FIELD_YEARS) };
 
 interface PhoneProps {
   onOpenFull: () => void;
@@ -166,7 +170,7 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
           <div className="inst-blocks">{typeCounts.map(({ type, count }) => <i key={type} style={{ background: palette[type].stroke, width: `${(count / nodes.length) * 100}%` }} />)}</div>
           <ul className="inst-mparts">{typeCounts.map(({ type, count }) => <li key={type}><span className="sw" style={{ background: palette[type].stroke }} />{typePlurals[type]}<span className="v">{count}</span></li>)}</ul>
         </div>
-        <p className="ph-lede">{t.plainFieldA} 1967 {t.plainFieldB} 2018{t.plainFieldC} {edges.filter((edge) => edge.reference).length} {t.plainFieldD} {edges.filter((edge) => !edge.reference).length} {t.plainFieldE}</p>
+        <p className="ph-lede">{t.plainFieldA} {FIELD_YEAR_RANGE.start} {t.plainFieldB} {FIELD_YEAR_RANGE.end}{t.plainFieldC} {edges.filter((edge) => edge.reference).length} {t.plainFieldD} {edges.filter((edge) => !edge.reference).length} {t.plainFieldE}</p>
       </section>
 
       <section className="ph-sec">

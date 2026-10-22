@@ -6,7 +6,7 @@ Un grafo de conocimiento interactivo que conecta autores, conceptos y métodos d
 
 ## Qué incluye
 
-- **36 nodos y 62 conexiones** curados a mano: 14 autores, 22 conceptos y métodos.
+- **72 nodos y 144 conexiones** curados a mano: 28 autores, 26 conceptos y 18 métodos, distribuidos en seis escuelas (11–13 nodos cada una) y con publicaciones fechadas entre 1956 y 2024.
 - **Tres idiomas completos**: interfaz, nombres de conceptos, descripciones, preguntas y etiquetas de relación. La elección se recuerda en el navegador y actualiza el atributo `lang` del documento.
 - **Grafo SVG interactivo** con zoom, paneo, arrastre de nodos, minimapa y vista enfocada sobre un nodo y sus vecinos.
 - **Cada conexión explica su porqué**: una frase de contexto por arista en los tres idiomas, visible en el perfil de cada nodo.
@@ -23,7 +23,7 @@ Un grafo de conocimiento interactivo que conecta autores, conceptos y métodos d
 
 Un panel lateral donde se pregunta en lenguaje natural y **el grafo responde**: resalta los nodos que sostienen la respuesta, dibuja recorridos entre ideas con pasos numerados, ajusta los filtros cuando la pregunta es una categoría y ofrece guardar los hallazgos como colección. La prosa acompaña; la respuesta es el grafo.
 
-- **Solo sabe lo que hay en el atlas.** El atlas completo va en el prompt (cabe de sobra: ~7k tokens por idioma), así que no hay embeddings ni base vectorial. Cuando algo no está, lo dice y señala lo más cercano que sí está.
+- **Solo sabe lo que hay en el atlas.** El atlas completo sigue siendo lo bastante compacto para acompañar al prompt por idioma, sin embeddings ni base vectorial. Cuando algo no está, lo dice y señala lo más cercano que sí está.
 - **Toda cita se valida.** El modelo responde con ids; la app comprueba cada uno contra el atlas y descarta lo que no existe. Un nodo inventado no llega a la pantalla.
 - **Responde en 1–2 segundos.** Gemini 3.5 Flash Lite, sin razonamiento interno: el atlas ya está en el prompt y la salida tiene esquema fijo.
 - **La clave de Gemini nunca viaja al navegador.** Un Worker de Cloudflare la guarda, limita el uso por IP y por día, y devuelve un plan estructurado. Ver [`worker/README.md`](worker/README.md) para desplegarlo; sin la variable `VITE_ASK_ENDPOINT`, la app se compila sin la guía y todo lo demás funciona igual.
@@ -34,7 +34,7 @@ La decisión de arquitectura está razonada en [`docs/adr/0001-capa-semantica-ia
 
 React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Framer Motion · lucide-react · Cloudflare Workers + Gemini para la guía
 
-La compilación usa `vite-plugin-singlefile`, así que `dist/index.html` es un **único archivo autocontenido** (~672 KB, ~201 KB gzip) que funciona abriéndolo directamente o subiéndolo a cualquier hosting estático.
+La compilación usa `vite-plugin-singlefile`, así que `dist/index.html` es un **único archivo autocontenido** (~811 KB, ~242 KB gzip) que funciona abriéndolo directamente o subiéndolo a cualquier hosting estático.
 
 ## Desarrollo
 
