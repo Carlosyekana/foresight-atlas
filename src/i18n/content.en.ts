@@ -606,6 +606,14 @@ export const contentEn: ContentDict = {
       publicationTitle: 'The Thing From The Future',
       publicationKind: 'Stuart Candy & Jeff Watson',
     },
+    'javier-medina': {
+      name: 'Javier Medina Vásquez',
+      lines: ['Javier Medina', 'Vásquez'],
+      subtitle: 'Foresight scholar and development planner',
+      description: 'colombian researcher and a leading voice in Latin American foresight. He earned a doctorate in social sciences from the Pontifical Gregorian University, studying human and social foresight under Eleonora Masini; he was a professor at Universidad del Valle, head of the Colciencias National Programme for Technological and Industrial Foresight, and coordinator of Latin American foresight and innovation networks.',
+      publicationTitle: 'Prospectiva y política pública para el cambio estructural en América Latina y el Caribe',
+      publicationKind: 'ECLAC book, with Steven Becerra & Paola Castaño',
+    },
   },
   edgeContexts: {
     'inayatullah--cla': 'Inayatullah creates Causal Layered Analysis in 1998: four levels — litany, system, worldview and myth — for reading one issue at different depths.',
@@ -752,6 +760,10 @@ export const contentEn: ContentDict = {
     'design-fiction--experiential-futures': 'A diegetic prototype turns an abstract future into an object or scene that can be touched, briefly used and discussed through the body.',
     'futures-games--experiential-futures': 'The game turns a scenario into social experience: a future is inhabited for the length of a match so its rules, tensions and artefacts can be felt.',
     'futures-games--participatory-futures': 'Simple, shared rules lower the barrier to entry and distribute imagining the future among everyone playing.',
+    'javier-medina--masini': 'Javier Medina completed his doctorate in human and social foresight under Eleonora Barbieri Masini: this edge is the Latin American bridge in that lineage.',
+    'javier-medina--anticipatory-governance': 'At ECLAC, Javier Medina argues for states able to anticipate, build shared visions and issue early warnings, not merely react to global transformations.',
+    'javier-medina--participatory-futures': 'His Latin American foresight champions shared visions of the future and collective learning over unilateral, short-term outlooks.',
+    'javier-medina--long-term-thinking': 'His manual on foresight and strategic decision-making restores a long-term vision as the basis for coordinating public policy, innovation and development.',
   },
   threads: {
     escenarios: {
