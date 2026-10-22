@@ -45,7 +45,7 @@ largos tratados como objetos («case files») que se abren sobre el mapa.
   cuyas piezas enlazan de vuelta a nodos del grafo; estructura en `blueprintShapes`,
   textos en `content.*.ts`). La **historia móvil** (patrón N12) también está hecha:
   en ≤760 px, `Phone.tsx` sustituye el instrumento por un scroll narrado (hero con
-  el grafo de fondo, secciones numeradas, dosisers a página completa) con el
+  el grafo de fondo, secciones numeradas, dossiers a página completa) con el
   instrumento completo a un toque. Pendiente: decidir si el modo oscuro pasa a ser
   la portada del Atlas.
 - Se mantiene SVG con nodos enfocables: no se adopta el canvas del artefacto, que es
