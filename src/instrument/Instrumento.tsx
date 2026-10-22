@@ -35,6 +35,13 @@ const SCHOOL_CENTERS: Record<School, Point> = {
 };
 const MODES: Mode[] = ['red', 'orbita', 'escuelas', 'cronologia'];
 const CODE_PREFIX: Record<EntityType, string> = { author: 'AUT', concept: 'CON', method: 'MET' };
+const FIELD_YEARS = nodeShapes
+  .map((shape) => Number.parseInt(shape.publicationYear, 10))
+  .filter(Number.isFinite);
+const FIELD_YEAR_RANGE = { start: Math.min(...FIELD_YEARS), end: Math.max(...FIELD_YEARS) };
+const TIMELINE_START = Math.floor(FIELD_YEAR_RANGE.start / 10) * 10;
+const TIMELINE_END = Math.ceil(FIELD_YEAR_RANGE.end / 10) * 10;
+const timelineX = (year: number) => 80 + (((Math.min(TIMELINE_END, Math.max(TIMELINE_START, year)) - TIMELINE_START) / (TIMELINE_END - TIMELINE_START)) * 810);
 
 function codeOf(node: AtlasNode) {
   const index = nodeShapes.findIndex((shape) => shape.id === node.id) + 1;
@@ -209,8 +216,9 @@ export default function Instrumento() {
       nodes.forEach((node) => {
         const key = `${node.publicationYear}-${node.type}`;
         const i = stacks.get(key) ?? 0; stacks.set(key, i + 1);
-        const year = parseInt(node.publicationYear, 10);
-        const x = 80 + ((year - 1962) / (2024 - 1962)) * 810;
+        const parsedYear = Number.parseInt(node.publicationYear, 10);
+        const year = Number.isFinite(parsedYear) ? parsedYear : TIMELINE_START;
+        const x = timelineX(year);
         const y = lanes[node.type] + (i - ((counts.get(key)! - 1) / 2)) * 44;
         map.set(node.id, { x, y });
       });
@@ -439,7 +447,7 @@ export default function Instrumento() {
         <div className="inst-blocks">{typeCounts.map(({ type, count }) => <i key={type} style={{ background: palette[type].stroke, width: `${(count / nodes.length) * 100}%` }} />)}</div>
         <ul className="inst-mparts">{typeCounts.map(({ type, count }) => <li key={type}><span className="sw" style={{ background: palette[type].stroke }} />{typePlurals[type]}<span className="v">{count}</span></li>)}</ul>
       </div>
-      <p className="inst-plain">{t.plainFieldA} <em>1967</em> {t.plainFieldB} <em>2018</em>{t.plainFieldC} <em>{edges.filter((edge) => edge.reference).length}</em> {t.plainFieldD} <em>{edges.filter((edge) => !edge.reference).length}</em> {t.plainFieldE}</p>
+      <p className="inst-plain">{t.plainFieldA} <em>{FIELD_YEAR_RANGE.start}</em> {t.plainFieldB} <em>{FIELD_YEAR_RANGE.end}</em>{t.plainFieldC} <em>{edges.filter((edge) => edge.reference).length}</em> {t.plainFieldD} <em>{edges.filter((edge) => !edge.reference).length}</em> {t.plainFieldE}</p>
       <div className="inst-stat3">
         <div><b>6</b><span>{t.schools}</span></div>
         <div><b>{threads.length}</b><span>Hilos</span></div>
@@ -639,8 +647,8 @@ export default function Instrumento() {
       onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); pinchRef.current = null; dragRef.current = null; pressRef.current = null; }}
       onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (dragRef.current?.moved) return; resetWorld(); }}>
       <g transform={`translate(${W / 2} ${H / 2}) scale(${view.k}) translate(${-W / 2 + view.x} ${-H / 2 + view.y})`}>
-        {mode === 'cronologia' && [1970, 1985, 2000, 2015].map((year) => {
-          const x = 80 + ((year - 1962) / 62) * 810;
+        {mode === 'cronologia' && [1960, 1980, 2000, 2020].map((year) => {
+          const x = timelineX(year);
           return <g key={year}><line x1={x} y1={60} x2={x} y2={630} stroke="#1d2f23" strokeDasharray="3 6" /><text className="inst-axis" x={x} y={655} textAnchor="middle">{year}</text></g>;
         })}
         {mode === 'escuelas' && SCHOOL_ORDER.map((school) => <text key={school} className="inst-territory" style={{ fill: schoolPalette[school].stroke, opacity: 0.6 }} x={SCHOOL_CENTERS[school].x} y={SCHOOL_CENTERS[school].y - 108} textAnchor="middle">{schools[school]}</text>)}
@@ -695,7 +703,7 @@ export default function Instrumento() {
     <div className="inst-intro-veil" aria-hidden={!intro}><div>
       <span className="tiny">{t.introKicker}</span>
       <h1>{t.introTitleA} <em>{t.introTitleB}</em></h1>
-      <p>{format(t.introMeta, { nodes: nodes.length, edges: edges.length })}</p>
+      <p>{format(t.introMeta, { nodes: nodes.length, edges: edges.length, years: `${FIELD_YEAR_RANGE.start}–${FIELD_YEAR_RANGE.end}` })}</p>
     </div></div>
     <button className="inst-skip" aria-label={t.skipIntro} title={t.skipIntro} onClick={finishIntro}>»</button>
 
