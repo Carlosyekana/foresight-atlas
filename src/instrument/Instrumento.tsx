@@ -76,6 +76,7 @@ export default function Instrumento() {
   const [schoolFilter, setSchoolFilter] = useState<School | 'all'>('all');
   const [threadId, setThreadId] = useState<string | null>(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('thread'));
   const [isPhone, setIsPhone] = useState(() => window.matchMedia('(max-width: 760px)').matches);
+  const [coarsePointer] = useState(() => window.matchMedia('(pointer: coarse)').matches);
   const [forceFull, setForceFull] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [blueprintOpen, setBlueprintOpen] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('blueprint') === '1');
@@ -88,6 +89,8 @@ export default function Instrumento() {
   const svgRef = useRef<SVGSVGElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startX: number; startY: number; view: typeof view; moved: boolean } | null>(null);
+  const pointersRef = useRef(new Map<number, Point>());
+  const pinchRef = useRef<{ distance: number; center: Point; view: typeof view } | null>(null);
 
   const selected = selectedId ? nodeById.get(selectedId) : undefined;
   const activeThread: AtlasThread | undefined = threads.find((thread) => thread.id === threadId);
@@ -450,8 +453,32 @@ export default function Instrumento() {
   return <div className={`inst ${intro ? 'is-intro' : ''}`} ref={rootRef}>
     <div className="inst-grid-bg" />
     <svg ref={svgRef} className="inst-net" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t.introKicker}
-      onPointerDown={(event) => { if (event.button === 0) dragRef.current = { startX: event.clientX, startY: event.clientY, view, moved: false }; }}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        pointersRef.current.set(event.pointerId, svgPoint(event.clientX, event.clientY));
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* pointer ya liberado */ }
+        if (pointersRef.current.size === 2) {
+          const [a, b] = [...pointersRef.current.values()];
+          pinchRef.current = { distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, view };
+          if (dragRef.current) dragRef.current.moved = true; // la pinza no debe terminar en "clic" sobre un nodo
+          return;
+        }
+        if (pointersRef.current.size > 2) return;
+        dragRef.current = { startX: event.clientX, startY: event.clientY, view, moved: false };
+      }}
       onPointerMove={(event) => {
+        if (pointersRef.current.has(event.pointerId)) pointersRef.current.set(event.pointerId, svgPoint(event.clientX, event.clientY));
+        const pinch = pinchRef.current;
+        if (pinch && pointersRef.current.size >= 2) {
+          const [a, b] = [...pointersRef.current.values()];
+          const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+          const k = Math.min(2.8, Math.max(0.45, pinch.view.k * Math.hypot(a.x - b.x, a.y - b.y) / pinch.distance));
+          // el punto del grafo bajo el centro inicial sigue a los dedos
+          setView({ k,
+            x: (center.x - W / 2) / k - (pinch.center.x - W / 2) / pinch.view.k + pinch.view.x,
+            y: (center.y - H / 2) / k - (pinch.center.y - H / 2) / pinch.view.k + pinch.view.y });
+          return;
+        }
         const drag = dragRef.current; if (!drag) return;
         const rect = svgRef.current!.getBoundingClientRect();
         const scale = Math.min(rect.width / W, rect.height / H);
@@ -459,7 +486,12 @@ export default function Instrumento() {
         if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
         setView({ ...drag.view, x: drag.view.x + dx / drag.view.k, y: drag.view.y + dy / drag.view.k });
       }}
-      onPointerUp={() => { window.setTimeout(() => { dragRef.current = null; }, 0); }}
+      onPointerUp={(event) => {
+        pointersRef.current.delete(event.pointerId);
+        if (pointersRef.current.size < 2) pinchRef.current = null;
+        window.setTimeout(() => { dragRef.current = null; }, 0);
+      }}
+      onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); pinchRef.current = null; dragRef.current = null; }}
       onClick={() => setInsp(null)}>
       <g transform={`translate(${W / 2} ${H / 2}) scale(${view.k}) translate(${-W / 2 + view.x} ${-H / 2 + view.y})`}>
         {mode === 'cronologia' && [1970, 1985, 2000, 2015].map((year) => {
@@ -477,7 +509,7 @@ export default function Instrumento() {
           const opacity = inThread ? 1 : dimmed(edge.source) && dimmed(edge.target) ? 0.14 : inFocus ? 0.95 : 0.4;
           return <g key={i} opacity={opacity}>
             <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={inThread ? '#b7f04a' : inFocus ? '#cfe3c2' : '#435c48'} strokeWidth={inThread ? 2.2 : 1} />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={13} style={{ cursor: 'pointer' }}
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={coarsePointer ? 32 : 13} style={{ cursor: 'pointer' }}
               onClick={(event) => {
                 event.stopPropagation();
                 const rect = rootRef.current!.getBoundingClientRect();
@@ -492,6 +524,7 @@ export default function Instrumento() {
           return <g key={node.id} className="inst-node" transform={`translate(${point.x} ${point.y})`} opacity={dimmed(node.id) ? 0.16 : 1}
             onMouseEnter={() => setHovered(node.id)} onMouseLeave={() => setHovered(null)}
             onClick={(event) => { event.stopPropagation(); if (!dragRef.current?.moved) go(node.id); }}>
+            <circle r={radius + (coarsePointer ? 16 : 6)} fill="transparent" />
             {node.id === selectedId && <><circle r={radius + 7} fill="none" stroke="#b7f04a" strokeWidth={1.4} /><circle r={radius + 12} fill="none" stroke="#b7f04a" strokeOpacity={0.35} /></>}
             <circle r={radius} fill={palette[node.type].fill} stroke={palette[node.type].stroke} strokeWidth={1.4} />
             {node.initials && <text textAnchor="middle" dominantBaseline="central" fontFamily="'IBM Plex Mono', monospace" fontSize={10} fill={palette[node.type].ink}>{node.initials}</text>}

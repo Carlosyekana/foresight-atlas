@@ -69,7 +69,7 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
     const connections = getConnections(node.id);
     return <div className="inst">
       <button className="ph-back" onClick={goBack}>{t.phBack}{history.length ? ` · ${nodeById.get(history[history.length - 1])?.name}` : ''}</button>
-      <div className="ph-nodepage" role="document">
+      <div className="ph-nodepage" role="document" key={node.id}>
         <span className="tiny" style={{ color: palette[node.type].stroke }}>● {codeOf(node)} · {typeLabels[node.type]}</span>
         <h1>{node.name}</h1>
         <p className="inst-dossier-sub">{node.subtitle}</p>
@@ -118,7 +118,7 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
           return <line key={i} x1={a.x} y1={a.y * 0.88 + 16} x2={b.x} y2={b.y * 0.88 + 16} stroke="#3c5745" strokeWidth={1} opacity={0.7} />;
         })}
         {nodes.map((node) => <g key={node.id} onClick={() => openNode(node.id)} style={{ cursor: 'pointer' }}>
-          <circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius * 0.95} fill={palette[node.type].fill} stroke={palette[node.type].stroke} strokeWidth={1.4} />
+          <circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius + 18} fill="transparent" /><circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius * 0.95} fill={palette[node.type].fill} stroke={palette[node.type].stroke} strokeWidth={1.4} />
           {(degree.get(node.id) ?? 0) >= 4 && <text x={node.x} y={node.y * 0.88 + 16 + node.radius + 14} textAnchor="middle" className="inst-node-label">{node.name}</text>}
         </g>)}
       </svg>

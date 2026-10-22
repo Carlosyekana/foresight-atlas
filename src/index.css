@@ -18,7 +18,7 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 360px; }
+body { margin: 0; }
 button, input, select, textarea { font: inherit; }
 button, a, input { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; color: inherit; border: 0; background: none; }
@@ -490,7 +490,7 @@ kbd { font-family: 'DM Sans', sans-serif; border: 1px solid #e1e6d9; border-radi
   .workspace-shell { height: calc(100dvh - 278px); min-height: 460px; }
   .workspace-toolbar { padding: 11px 12px; gap: 8px; }
   .search-field { gap: 6px; padding: 0 8px; }
-  .search-field input { font-size: 10px; }
+  .search-field input { font-size: 16px; }
   .filter-button { font-size: 9px; padding: 0 8px; }
   .school-filter .filter-button > span { max-width: 102px; }
   .search-results { min-width: min(340px, calc(100vw - 65px)); }
@@ -503,6 +503,7 @@ kbd { font-family: 'DM Sans', sans-serif; border: 1px solid #e1e6d9; border-radi
   .workspace-expanded { inset: 8px !important; }
   .modal { padding: 25px; max-height: calc(100dvh - 30px); border-radius: 10px; }
   .modal-backdrop { padding: 15px; }
+  .form-input { font-size: 16px; }
   .modal-heading h2 { font-size: 21px; }
   .modal-heading p { font-size: 11px; }
   .about-intro p { font-size: 11px; }
@@ -531,7 +532,7 @@ kbd { font-family: 'DM Sans', sans-serif; border: 1px solid #e1e6d9; border-radi
   .workspace-toolbar { height: 93px; padding: 10px 11px; align-items: stretch; flex-direction: column; gap: 7px; }
   .search-area { flex: 0 0 31px; }
   .search-field { height: 31px; }
-  .search-field input { line-height: 29px; font-size: 10px; }
+  .search-field input { line-height: 29px; font-size: 16px; }
   .toolbar-filters { gap: 8px; height: 27px; }
   .filter-button { height: 26px; font-size: 9px; padding: 0 8px; gap: 7px; }
   .school-filter { margin-right: auto; }
@@ -628,7 +629,7 @@ kbd { font-family: 'DM Sans', sans-serif; border: 1px solid #e1e6d9; border-radi
   .ask-log { padding: 12px 22px 16px 24px; }
   .ask-message > p, .ask-model > p { font-size: 12px; }
   .ask-starter { font-size: 11px; padding: 11px 12px; }
-  .ask-input { font-size: 12px; }
+  .ask-input { font-size: 16px; }
   .ask-open-button > span { display: none; }
 }
 @media (max-width: 760px) {
