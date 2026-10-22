@@ -23,6 +23,18 @@ export interface NodeText {
   publicationKind: string;
 }
 
+/** Text for one Plano (method blueprint). Parts align with the shape's links. */
+export interface BlueprintText {
+  parts: { title: string; body: string; example?: string }[];
+}
+
+/** Text for one Hilo (reading thread). Steps are keyed by node id. */
+export interface ThreadText {
+  title: string;
+  dek: string;
+  steps: Record<string, string>;
+}
+
 export interface ContentDict {
   schools: Record<School, string>;
   typeLabels: Record<EntityType, string>;
@@ -31,6 +43,17 @@ export interface ContentDict {
   /** `forward` reads source → target; `inverse` reads target → source. */
   relations: Record<RelationKey, { forward: string; inverse: string }>;
   nodes: Record<string, NodeText>;
+  /**
+   * One plain sentence per edge: why this link exists. Keyed by `edgeId`
+   * (`${source}--${target}`). Reads in the edge's forward direction. Every
+   * edge in `data/atlas.ts` must have one in every language — the i18n layer
+   * assembles them and a missing key surfaces as an empty context in the UI.
+   */
+  edgeContexts: Record<string, string>;
+  /** Keyed by thread id from `threadShapes`. */
+  threads: Record<string, ThreadText>;
+  /** Keyed by method node id from `blueprintShapes`. */
+  blueprints: Record<string, BlueprintText>;
 }
 
 export interface UiDict {
@@ -50,6 +73,7 @@ export interface UiDict {
     storedOnDevice: string;
     storedForSession: string;
     guidance: string;
+    instrument: string;
   };
   topbar: {
     livingAtlas: string;
@@ -225,4 +249,36 @@ export interface UiDict {
     errors: Record<'bad_request' | 'rate_limited' | 'quota_exhausted' | 'busy' | 'upstream' | 'unavailable', string>;
   };
   defaultCollection: string;
+  /** Chrome of the dark instrument mode (#/instrumento). */
+  inst: {
+    brandSub: string;
+    map: string; index: string; classicView: string;
+    searchPlaceholder: string; searchLabel: string;
+    types: string; schools: string; threadsFiles: string; guidedRoutes: string; railHint: string;
+    names: string; namesOff: string; namesKey: string; namesAll: string;
+    zoomSystem: string; zoomConstellation: string; zoomNode: string;
+    modeNetwork: string; modeOrbit: string; modeSchools: string; modeTimeline: string; modesLabel: string;
+    nodesUpper: string; dataLine: string; world: string; backTitle: string;
+    skipIntro: string; introKicker: string; introTitleA: string; introTitleB: string; introMeta: string;
+    dossierWorld: string; instrumentWord: string; fieldTitle: string; fieldSub: string;
+    plainFieldA: string; plainFieldB: string; plainFieldC: string; plainFieldD: string; plainFieldE: string;
+    statModes: string; startByThread: string; stepsGuided: string; howTitle: string; howBody: string;
+    backToWorld: string; backToThread: string;
+    wovenA: string; wovenB: string; wovenC: string;
+    school: string; year: string; connections: string; relations: string;
+    publication: string; source: string; centerOrbit: string;
+    directSource: string; editorialAssoc: string;
+    threadFile: string; closeUpper: string; steps: string; years: string; chain: string;
+    threadPlainA: string; threadPlainB: string; threadPlainC: string;
+    openPaper: string; paperOpen: string; paperWord: string; paperAria: string;
+    fileCard: string; photoShow: string; photoHide: string;
+    reportKicker: string; reportData: string; directSources: string; timeSpan: string;
+    kfAuthors: string; kfIdeas: string; kfDirect: string; kfYears: string;
+    chainSteps: string; linkSources: string; directLink: string; editorialNote: string; endMark: string;
+    directBadge: string; editorialBadge: string; seeReference: string; editorialExplain: string;
+    indexTitle: string; backToMap: string; colName: string; colType: string; colCode: string;
+    openBlueprint: string; blueprintInInstrument: string;
+    bpKicker: string; bpExploded: string; bpAssembled: string; bpParts: string;
+    bpGoNode: string; bpAuthor: string; bpHint: string; bpExample: string; bpDepth: string; bpPresence: string; bpTime: string;
+  };
 }

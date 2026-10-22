@@ -15,7 +15,7 @@ interface DetailPanelProps {
 }
 
 export default function DetailPanel({ node, onSelect, onClose, onFocus, onSave, saved }: DetailPanelProps) {
-  const { ui, schools, typeLabels, getConnections } = useI18n();
+  const { ui, schools, typeLabels, getConnections, blueprints } = useI18n();
   const [allConnections, setAllConnections] = useState(false);
   const connections = getConnections(node.id);
   const visible = allConnections ? connections : connections.slice(0, 4);
@@ -32,12 +32,13 @@ export default function DetailPanel({ node, onSelect, onClose, onFocus, onSave, 
         <p className="profile-school">{schools[node.school]}</p>
         <p className="profile-description">{node.description}</p>
         <button className="text-button focus-button" onClick={() => onFocus(node)}><Focus size={15} />{ui.detail.focusOn} {typeLabels[node.type].toLowerCase()}<ArrowUpRight size={14} /></button>
+        {blueprints.has(node.id) && <button className="blueprint-link" onClick={() => { window.location.hash = `#/instrumento?node=${node.id}&blueprint=1`; }}><span>{ui.inst.bpKicker} · {blueprints.get(node.id)!.code}</span><strong>{ui.inst.blueprintInInstrument}</strong><ArrowUpRight size={14} /></button>}
 
         <section className="detail-connections">
           <div className="section-label"><h3>{node.type === 'author' ? ui.detail.connectedIdeas : ui.detail.connectedThreads}</h3><span>{connections.length}</span></div>
           <div>{visible.map((connection) => <button className="connection-row" key={connection.node.id} onClick={() => onSelect(connection.node)}>
             <span className="connection-dot" style={{ background: palette[connection.node.type].fill, borderColor: palette[connection.node.type].stroke }} />
-            <span className="connection-copy"><strong>{connection.node.name}</strong><small>{connection.relation}</small></span>
+            <span className="connection-copy"><strong>{connection.node.name}</strong><small>{connection.relation}</small>{connection.context && <small className="connection-context">{connection.context}</small>}</span>
             <ArrowRight size={14} />
           </button>)}</div>
           {connections.length > 4 && <button className="text-button more-connections" onClick={() => setAllConnections(!allConnections)}>{allConnections ? ui.detail.showFewer : format(ui.detail.viewAll, { count: connections.length })}<ArrowDown size={13} className={allConnections ? 'rotate-arrow' : ''} /></button>}

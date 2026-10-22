@@ -51,6 +51,10 @@ svg { flex-shrink: 0; }
 .nav-item.active { color: #35573b; background: #eaf0e3; font-weight: 600; }
 .nav-item.active > svg { stroke-width: 1.9; }
 .active-nav-dot { width: 4px; height: 4px; border-radius: 100%; background: #708f65; }
+/* doorway into the dark instrument world — styled like the place it leads to */
+.nav-item.instrument-item { background: #0a120d; color: #dfeac9; margin-top: 6px; }
+.nav-item.instrument-item:hover { background: #122017; color: #b7f04a; }
+.nav-item.instrument-item > small { color: #7d9a6d; font-family: monospace; font-size: 9px; }
 .collections-label { display: flex; align-items: center; justify-content: space-between; padding-left: 14px; margin: 34px 0 6px; }
 .collections-label .icon-button { color: #909c86; }
 .collection-item { font-size: 11.5px; }
@@ -225,6 +229,9 @@ kbd { font-family: 'DM Sans', sans-serif; border: 1px solid #e1e6d9; border-radi
 .connection-copy { flex: 1; min-width: 0; }
 .connection-copy > strong { font-size: 10px; font-weight: 500; color: #738364; display: block; line-height: 1.4; }
 .connection-copy > small { font-size: 8px; font-weight: 400; color: #9eaa92; display: block; margin-top: 3px; }
+.connection-copy > small.connection-context { font-size: 9.5px; line-height: 1.5; color: #82917a; margin-top: 4px; }
+.connection-row { align-items: flex-start; }
+.connection-row .connection-dot { margin-top: 4px; }
 .connection-row > svg { color: #acb69e; opacity: .8; transition: transform .2s, color .2s; margin-left: 3px; }
 .connection-row:hover > svg { color: #567842; transform: translateX(3px); }
 .connection-row:hover .connection-copy > strong { color: #526e3f; }
@@ -630,3 +637,9 @@ kbd { font-family: 'DM Sans', sans-serif; border: 1px solid #e1e6d9; border-radi
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* doorway from a method profile to its blueprint in the dark instrument */
+.blueprint-link { display: flex; align-items: center; gap: 9px; width: 100%; margin-top: 14px; padding: 10px 12px; background: #0b2e2a; background-image: linear-gradient(rgba(217,232,220,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(217,232,220,.08) 1px, transparent 1px); background-size: 10px 10px; color: #d9e8dc; border-radius: 6px; text-align: left; }
+.blueprint-link span { font-family: monospace; font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: #b7f04a; }
+.blueprint-link strong { flex: 1; font-size: 10.5px; font-weight: 550; }
+.blueprint-link:hover { color: #b7f04a; }

@@ -1,4 +1,4 @@
-import { edges, nodeShapes } from '../data/atlas';
+import { edgeId, edges, nodeShapes, threadShapes } from '../data/atlas';
 import { contentEn } from '../i18n/content.en';
 import { contentEs } from '../i18n/content.es';
 import { contentPt } from '../i18n/content.pt';
@@ -30,9 +30,15 @@ export function atlasToPrompt(lang: Language): string {
     lines.push(`- ${shape.id} | ${shape.type} | ${shape.school} | ${text.name} — ${text.subtitle}. ${text.description}${question} [${text.publicationTitle}, ${shape.publicationYear}]`);
   }
 
-  lines.push('', '## Edges', 'Format: source_id --relation--> target_id. "ref" means a direct source backs the link; otherwise it is an editorial association.');
+  lines.push('', '## Edges', 'Format: source_id --relation--> target_id: why the link exists. "ref" means a direct source backs the link; otherwise it is an editorial association.');
   for (const edge of edges) {
-    lines.push(`- ${edge.source} --${edge.relation}--> ${edge.target}${edge.reference ? ' (ref)' : ''}`);
+    lines.push(`- ${edge.source} --${edge.relation}--> ${edge.target}${edge.reference ? ' (ref)' : ''}: ${dict.edgeContexts[edgeId(edge)] ?? ''}`);
+  }
+
+  lines.push('', '## Reading threads ("Hilos")', 'Curated routes where each consecutive pair is an edge. When a question matches one, its path is a good answer route.');
+  for (const thread of threadShapes) {
+    const text = dict.threads[thread.id];
+    if (text) lines.push(`- ${thread.code} "${text.title}" (${thread.path.join(' -> ')}): ${text.dek}`);
   }
 
   return lines.join('\n');
