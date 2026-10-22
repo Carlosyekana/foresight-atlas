@@ -59,10 +59,15 @@ largos tratados como objetos («case files») que se abren sobre el mapa.
   la referencia que faltaban.
   - *Sistema vivo*: los nodos derivan de forma continua con fase propia (el bucle
     pinta a ~24 fps en reposo; `prefers-reduced-motion` lo apaga), las aristas de
-    una ruta (Hilo o guía) fluyen y el anillo del nodo activo pulsa.
-  - *Color diverso*: el nodo lleva **dos codificaciones** —relleno pastel por tipo
-    (como siempre) y **anillo vivo por escuela** (`schoolPalette`, 6 tonos), en
-    ambos mundos; es el análogo de las 9 categorías de color de la referencia.
+    una ruta (Hilo o guía) fluyen y el anillo del nodo activo pulsa. Al
+    seleccionar, la cámara **vuela y acerca** la entidad; el zoom con rueda
+    conserva el punto bajo el cursor (su fórmula anterior no lo hacía y el grafo
+    «se escapaba» al acercar).
+  - *Color diverso*: el nodo lleva **dos codificaciones**. En la clásica: relleno
+    pastel por tipo y **anillo por escuela**. En el instrumento oscuro (como la
+    referencia): **relleno vivo por escuela** con halo (`schoolPalette`, 6 tonos)
+    y **forma por tipo** (● autor con iniciales · ◆ método · ◎ concepto); las
+    líneas se curvan y heredan el color de la escuela de origen.
   - *Guardar en el instrumento*: las colecciones son un solo almacén
     (`src/data/collections.ts`) que comparten clásica, instrumento e historia
     móvil; además se pueden guardar **relaciones** desde el inspector
