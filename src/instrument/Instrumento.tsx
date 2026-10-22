@@ -109,6 +109,7 @@ export default function Instrumento() {
   // al SVG cierre lo que acabamos de abrir.
   const pressRef = useRef<{ nodeId: string | null; edge: AtlasEdge | null } | null>(null);
   const suppressClickRef = useRef(false);
+  const viewAnimRef = useRef(0);
 
   const selected = selectedId ? nodeById.get(selectedId) : undefined;
   const activeThread: AtlasThread | undefined = threads.find((thread) => thread.id === threadId);
@@ -151,6 +152,7 @@ export default function Instrumento() {
     return () => { if (meta) meta.content = '#f8faf5'; }; // the classic workspace is light
   }, []);
 
+  useEffect(() => () => { if (viewAnimRef.current) cancelAnimationFrame(viewAnimRef.current); }, []);
   useEffect(() => { writeCollections(collections); }, [collections]);
   useEffect(() => { writeSavedEdges(savedEdgeIds); }, [savedEdgeIds]);
   useEffect(() => {
@@ -273,6 +275,7 @@ export default function Instrumento() {
     if (!svg) return;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
+      if (viewAnimRef.current) { cancelAnimationFrame(viewAnimRef.current); viewAnimRef.current = 0; }
       const point = svgPoint(event.clientX, event.clientY);
       setView((current) => {
         const k = Math.min(2.8, Math.max(0.45, current.k * Math.exp(-event.deltaY * 0.0014)));
@@ -283,7 +286,7 @@ export default function Instrumento() {
     svg.addEventListener('wheel', onWheel, { passive: false });
     return () => svg.removeEventListener('wheel', onWheel);
   }, []);
-  const zoomBy = (amount: number) => setView((current) => ({ ...current, k: Math.min(2.8, Math.max(0.45, current.k + amount)) }));
+  const zoomBy = (amount: number) => { if (viewAnimRef.current) { cancelAnimationFrame(viewAnimRef.current); viewAnimRef.current = 0; } setView((current) => ({ ...current, k: Math.min(2.8, Math.max(0.45, current.k + amount)) })); };
 
   /* ---------- navegación con historial ---------- */
   function go(id: string) {
@@ -309,6 +312,32 @@ export default function Instrumento() {
     setMode(next); setInsp(null);
   }
   function exitPrototype() { window.location.hash = '#/clasico'; }
+
+  /* La cámara vuela de vuelta a la vista inicial (×0.92, centrada). */
+  function flyHome() {
+    if (viewAnimRef.current) cancelAnimationFrame(viewAnimRef.current);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setView({ k: 0.92, x: 0, y: 0 }); return; }
+    const from = view;
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / 620);
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      setView({ k: from.k + (0.92 - from.k) * e, x: from.x * (1 - e), y: from.y * (1 - e) });
+      viewAnimRef.current = t < 1 ? requestAnimationFrame(step) : 0;
+    };
+    viewAnimRef.current = requestAnimationFrame(step);
+  }
+
+  /* Clic fuera de toda entidad: deseleccionar, que todo se ilumine de nuevo
+     y volver a la figura inicial (dossier «El campo», cámara en casa; la
+     órbita sin centro no significa nada, así que ahí se vuelve a la red).
+     Los filtros del riel se respetan: son una decisión, no una selección. */
+  function resetWorld() {
+    setSelectedId(null); setPanel('campo'); setInsp(null); setHovered(null);
+    setThreadId(null); clearAskFocus();
+    if (mode === 'orbita') setMode('red');
+    flyHome();
+  }
 
   /* ---------- paridad con la vista clásica: guardar, sorprender, guía IA ---------- */
   const collectionLabel = (item: Collection) => (item.id === DEFAULT_COLLECTION_ID ? ui.defaultCollection : item.name);
@@ -542,6 +571,7 @@ export default function Instrumento() {
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         suppressClickRef.current = false;
+        if (viewAnimRef.current) { cancelAnimationFrame(viewAnimRef.current); viewAnimRef.current = 0; }
         pointersRef.current.set(event.pointerId, svgPoint(event.clientX, event.clientY));
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* pointer ya liberado */ }
         if (pointersRef.current.size === 2) {
@@ -590,7 +620,7 @@ export default function Instrumento() {
         window.setTimeout(() => { dragRef.current = null; }, 0);
       }}
       onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); pinchRef.current = null; dragRef.current = null; pressRef.current = null; }}
-      onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (dragRef.current?.moved) return; setInsp(null); if (askPath.length || askHighlight.length) clearAskFocus(); }}>
+      onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (dragRef.current?.moved) return; resetWorld(); }}>
       <g transform={`translate(${W / 2} ${H / 2}) scale(${view.k}) translate(${-W / 2 + view.x} ${-H / 2 + view.y})`}>
         {mode === 'cronologia' && [1970, 1985, 2000, 2015].map((year) => {
           const x = 80 + ((year - 1962) / 62) * 810;
@@ -716,7 +746,7 @@ export default function Instrumento() {
     <div className="inst-ctrls" aria-label={t.map}>
       <button onClick={() => zoomBy(0.18)} aria-label={ui.graph.zoomIn}>+</button>
       <button onClick={() => zoomBy(-0.18)} aria-label={ui.graph.zoomOut}>−</button>
-      <button onClick={() => setView({ k: 0.92, x: 0, y: 0 })} aria-label={ui.graph.resetZoom}>◎</button>
+      <button onClick={flyHome} aria-label={ui.graph.resetZoom}>◎</button>
     </div>
 
     <div className="inst-modes" role="group" aria-label={t.modesLabel}>

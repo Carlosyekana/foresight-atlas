@@ -17,6 +17,8 @@ interface GraphProps {
   onSelect: (node: AtlasNode) => void;
   focusId: string | null;
   onClearFocus: () => void;
+  /** Click on empty canvas: light everything back up and return to the initial figure. */
+  onBackground?: () => void;
   settings: GraphSettings;
   svgRef: RefObject<SVGSVGElement | null>;
   onReset: () => void;
@@ -56,7 +58,7 @@ function curve(a: Point, b: Point, index: number) {
   return { d: `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`, x: (a.x + 2 * cx + b.x) / 4, y: (a.y + 2 * cy + b.y) / 4 };
 }
 
-export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onClearFocus, settings, svgRef, onReset, expanded, onExpand, emphasisIds = [], pathIds = [] }: GraphProps) {
+export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onClearFocus, onBackground, settings, svgRef, onReset, expanded, onExpand, emphasisIds = [], pathIds = [] }: GraphProps) {
   const { ui, typeLabels, typePlurals } = useI18n();
   const [view, setView] = useState<View>(initialView);
   const [positions, setPositions] = useState<Record<string, Point>>({});
@@ -212,6 +214,7 @@ export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onC
         }}
         onPointerUp={(event) => {
           pointers.current.delete(event.pointerId);
+          const wasPinching = !!pinch.current;
           if (pinch.current) {
             pinch.current = null;
             drag.current = null;
@@ -219,6 +222,9 @@ export default function Graph({ nodes, edges, selectedId, onSelect, focusId, onC
           if (drag.current && !drag.current.moved && drag.current.nodeId) {
             const node = nodes.find((item) => item.id === drag.current!.nodeId);
             if (node) onSelect(node);
+          } else if (drag.current && !drag.current.moved && !wasPinching) {
+            resetView(); // posiciones y cámara iniciales
+            onBackground?.();
           }
           drag.current = null;
           setDragging(false);
