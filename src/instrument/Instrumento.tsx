@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { edges, nodeShapes, palette, type AtlasEdge, type AtlasNode, type EntityType, type School } from '../data/atlas';
+import { edgeId, edges, nodeShapes, palette, schoolPalette, type AtlasEdge, type AtlasNode, type EntityType, type School } from '../data/atlas';
+import { appendCollection, DEFAULT_COLLECTION_ID, readCollections, readSavedEdges, toggleNodeInCollections, writeCollections, writeSavedEdges, type Collection } from '../data/collections';
+import AskPanel from '../components/AskPanel';
+import { askEnabled } from '../ai/client';
+import type { AskPlan } from '../ai/contract';
 import { format, useI18n, type AtlasThread } from '../i18n';
 import Blueprint from './Blueprint';
 import Phone from './Phone';
@@ -80,6 +84,12 @@ export default function Instrumento() {
   const [forceFull, setForceFull] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [blueprintOpen, setBlueprintOpen] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('blueprint') === '1');
+  const [collections, setCollections] = useState<Collection[]>(readCollections);
+  const [savedEdgeIds, setSavedEdgeIds] = useState<string[]>(readSavedEdges);
+  const [askOpen, setAskOpen] = useState(false);
+  const [askHighlight, setAskHighlight] = useState<string[]>([]);
+  const [askPath, setAskPath] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const [indexOpen, setIndexOpen] = useState(false);
   const [indexSort, setIndexSort] = useState<'name' | 'year' | 'degree'>('degree');
   const [photoTucked, setPhotoTucked] = useState(false);
@@ -105,6 +115,7 @@ export default function Instrumento() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (askOpen) { setAskOpen(false); return; }
       if (blueprintOpen) setBlueprintOpen(false);
       else if (reportOpen) setReportOpen(false);
       else if (indexOpen) setIndexOpen(false);
@@ -112,7 +123,7 @@ export default function Instrumento() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [blueprintOpen, reportOpen, indexOpen, insp]);
+  }, [askOpen, blueprintOpen, reportOpen, indexOpen, insp]);
 
   useEffect(() => {
     const query = window.matchMedia('(max-width: 760px)');
@@ -131,6 +142,16 @@ export default function Instrumento() {
     if (meta) meta.content = '#0a120d';
     return () => { if (meta) meta.content = '#f8faf5'; }; // the classic workspace is light
   }, []);
+
+  useEffect(() => { writeCollections(collections); }, [collections]);
+  useEffect(() => { writeSavedEdges(savedEdgeIds); }, [savedEdgeIds]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+  const savedIds = useMemo(() => new Set(collections.flatMap((item) => item.nodeIds)), [collections]);
+  const savedEdgeSet = useMemo(() => new Set(savedEdgeIds), [savedEdgeIds]);
 
   /* ---------- intro cinemática ---------- */
   useEffect(() => {
@@ -196,18 +217,35 @@ export default function Instrumento() {
   useEffect(() => {
     const from = new Map(positionsRef.current);
     const start = performance.now();
-    const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 880;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const duration = reduced ? 1 : 880;
+    // Deriva ambiental: el sistema respira. Cada nodo flota con su propia fase
+    // (amplitud contenida en cronología, donde el eje manda). Sin deriva si el
+    // sistema pide menos movimiento.
+    const driftAmp = mode === 'cronologia' ? 1.6 : mode === 'red' ? 4.2 : 2.6;
+    const phases = new Map<string, number>();
+    nodeShapes.forEach((shape, index) => phases.set(shape.id, index * 1.618));
     let frame = 0;
+    let lastPaint = 0;
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / duration);
       const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      if (t >= 1 && now - lastPaint < 42) { frame = requestAnimationFrame(tick); return; } // ~24 fps en reposo
+      lastPaint = now;
       const next = new Map<string, Point>();
       targets.forEach((target, id) => {
         const origin = from.get(id) ?? target;
-        next.set(id, { x: origin.x + (target.x - origin.x) * e, y: origin.y + (target.y - origin.y) * e });
+        let x = origin.x + (target.x - origin.x) * e;
+        let y = origin.y + (target.y - origin.y) * e;
+        if (!reduced) {
+          const phase = phases.get(id) ?? 0;
+          x += (Math.sin(now / 5400 + phase) + Math.sin(now / 1900 + phase * 1.7) * 0.3) * driftAmp * e;
+          y += Math.cos(now / 6300 + phase * 1.3) * driftAmp * 0.8 * e;
+        }
+        next.set(id, { x, y });
       });
       setPositions(next);
-      if (t < 1) frame = requestAnimationFrame(tick);
+      if (t < 1 || !reduced) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
@@ -264,6 +302,43 @@ export default function Instrumento() {
   }
   function exitPrototype() { window.location.hash = '#/clasico'; }
 
+  /* ---------- paridad con la vista clásica: guardar, sorprender, guía IA ---------- */
+  const collectionLabel = (item: Collection) => (item.id === DEFAULT_COLLECTION_ID ? ui.defaultCollection : item.name);
+  function toggleSave(node: AtlasNode) {
+    const wasSaved = savedIds.has(node.id);
+    setCollections((current) => toggleNodeInCollections(current, node.id));
+    setNotice(wasSaved ? format(ui.toasts.removed, { name: node.name }) : ui.detail.savedToCollection);
+  }
+  function toggleSaveEdge(edge: AtlasEdge) {
+    const id = edgeId(edge);
+    setSavedEdgeIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+  function surprise() {
+    const options = nodes.filter((node) => node.id !== selectedId);
+    const node = options[Math.floor(Math.random() * options.length)];
+    if (!node) return;
+    setAskPath([]); setAskHighlight([]);
+    go(node.id);
+    setNotice(format(ui.toasts.newThread, { name: node.name }));
+  }
+  function applyAskPlan(plan: AskPlan) {
+    setHiddenTypes(plan.filters.type === 'all' ? new Set() : new Set((Object.keys(typeLabels) as EntityType[]).filter((type) => type !== plan.filters.type)));
+    setSchoolFilter(plan.filters.school);
+    setAskHighlight(plan.highlight.filter((id) => nodeById.has(id)));
+    setAskPath(plan.path.filter((id) => nodeById.has(id)));
+    if (plan.highlight[0] && nodeById.has(plan.highlight[0])) { setSelectedId(plan.highlight[0]); setPanel('nodo'); }
+  }
+  function showAskPath(ids: string[]) {
+    setHiddenTypes(new Set()); setSchoolFilter('all');
+    setAskPath(ids); setAskHighlight(ids); setAskOpen(false);
+  }
+  function saveAskCollection(name: string, ids: string[]) {
+    const result = appendCollection(collections, name, ids, collectionLabel);
+    setCollections(result.collections);
+    setNotice(format(ui.ask.collectionSaved, { name: result.name, count: ids.length }));
+  }
+  function clearAskFocus() { setAskPath([]); setAskHighlight([]); }
+
   /* ---------- conjuntos derivados ---------- */
   const visibleNodes = nodes.filter((node) => !hiddenTypes.has(node.type) && (schoolFilter === 'all' || node.school === schoolFilter));
   const visibleIds = new Set(visibleNodes.map((node) => node.id));
@@ -276,9 +351,11 @@ export default function Instrumento() {
   }, [activeId]);
   const threadSet = new Set(activeThread?.path ?? []);
   const threadEdgeKeys = new Set((activeThread?.path ?? []).slice(0, -1).map((id, i) => [id, activeThread!.path[i + 1]].sort().join('|')));
-  const dimmed = (id: string) => (activeThread ? !threadSet.has(id) : activeId ? !neighbors.has(id) : false);
+  const askPathSet = new Set(askPath);
+  const askPathEdgeKeys = new Set(askPath.slice(0, -1).map((id, i) => [id, askPath[i + 1]].sort().join('|')));
+  const dimmed = (id: string) => (activeThread ? !threadSet.has(id) : askPath.length ? !askPathSet.has(id) : activeId ? !neighbors.has(id) : false);
   const showLabel = (node: AtlasNode) =>
-    labels === 'all' || (labels === 'key' && ((degree.get(node.id) ?? 0) >= 4 || node.id === selectedId || node.id === hovered || threadSet.has(node.id) || (activeId ? neighbors.has(node.id) : false)));
+    labels === 'all' || (labels === 'key' && ((degree.get(node.id) ?? 0) >= 4 || node.id === selectedId || node.id === hovered || threadSet.has(node.id) || askPathSet.has(node.id) || (activeId ? neighbors.has(node.id) : false)));
   const zoomLevel = view.k < 0.95 ? ['01', t.zoomSystem] : view.k < 1.6 ? ['02', t.zoomConstellation] : ['03', t.zoomNode];
   const typeCounts = (Object.keys(typeLabels) as EntityType[]).map((type) => ({ type, count: nodes.filter((node) => node.type === type).length }));
   const searchResults = query.trim() ? nodes.filter((node) => matchesSearch(node, query)).slice(0, 7) : [];
@@ -333,7 +410,7 @@ export default function Instrumento() {
     const connections = getConnections(node.id);
     const verbs = [...new Set(connections.map((item) => item.relation))].slice(0, 3).join(', ');
     return <>
-      <div className="inst-idrow"><span className="tiny" style={{ color: palette[node.type].stroke }}>● {codeOf(node)} · {typeLabels[node.type]}</span>
+      <div className="inst-idrow"><span className="tiny" style={{ color: schoolPalette[node.school].stroke }}>● {codeOf(node)} · {typeLabels[node.type]}</span>
         <button className="closebtn" onClick={() => { if (activeThread) setPanel('hilo'); else { setSelectedId(null); setPanel('campo'); } }}>{activeThread ? t.backToThread : t.backToWorld}</button></div>
       <h1>{node.name}</h1>
       <p className="sub">{node.subtitle}</p>
@@ -350,7 +427,7 @@ export default function Instrumento() {
       <section className="inst-sec">
         <h4>{t.relations} <span>{connections.length}</span></h4>
         {connections.map((item) => <button key={item.node.id} className="inst-rel" onClick={() => go(item.node.id)}>
-          <span className="cdot" style={{ background: palette[item.node.type].fill, borderColor: palette[item.node.type].stroke }} />
+          <span className="cdot" style={{ background: palette[item.node.type].fill, borderColor: schoolPalette[item.node.school].stroke }} />
           <span className="who">{item.node.name}</span><span className="yr">{item.node.publicationYear}</span>
           <span className="what">{item.relation}{edgeBetween(node.id, item.node.id)?.reference ? ` · ${t.directSource}` : ` · ${t.editorialAssoc}`}</span>
           {item.context && <span className="ctx">{item.context}</span>}
@@ -361,6 +438,7 @@ export default function Instrumento() {
         <p className="inst-prose">{node.publication.title} <span className="mono" style={{ color: 'var(--fg3)', fontSize: 11 }}>· {node.publication.kind} / {node.publication.year}</span></p>
         <div className="inst-srcs"><a href={node.publication.url} target="_blank" rel="noreferrer">{t.publication}</a><a href={node.source} target="_blank" rel="noreferrer">{t.source}</a></div>
       </section>
+      <button className={`inst-cta ${savedIds.has(node.id) ? 'saved' : ''}`} aria-pressed={savedIds.has(node.id)} onClick={() => toggleSave(node)}>{savedIds.has(node.id) ? `✓ ${ui.detail.savedToCollection}` : `＋ ${ui.detail.saveToCollection}`}</button>
       {blueprints.has(node.id) && <button className="inst-cta solid" onClick={() => setBlueprintOpen(true)}>{t.openBlueprint} · {blueprints.get(node.id)!.code}</button>}
       <button className="inst-cta" onClick={() => switchMode('orbita')}>{t.centerOrbit}</button>
     </>;
@@ -492,7 +570,7 @@ export default function Instrumento() {
         window.setTimeout(() => { dragRef.current = null; }, 0);
       }}
       onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); pinchRef.current = null; dragRef.current = null; }}
-      onClick={() => setInsp(null)}>
+      onClick={() => { setInsp(null); if (askPath.length || askHighlight.length) clearAskFocus(); }}>
       <g transform={`translate(${W / 2} ${H / 2}) scale(${view.k}) translate(${-W / 2 + view.x} ${-H / 2 + view.y})`}>
         {mode === 'cronologia' && [1970, 1985, 2000, 2015].map((year) => {
           const x = 80 + ((year - 1962) / 62) * 810;
@@ -504,11 +582,12 @@ export default function Instrumento() {
           const a = positions.get(edge.source); const b = positions.get(edge.target);
           if (!a || !b) return null;
           const key = [edge.source, edge.target].sort().join('|');
-          const inThread = threadEdgeKeys.has(key);
+          const inRoute = threadEdgeKeys.has(key) || askPathEdgeKeys.has(key);
+          const isSavedEdge = savedEdgeSet.has(edgeId(edge));
           const inFocus = !!activeId && (edge.source === activeId || edge.target === activeId);
-          const opacity = inThread ? 1 : dimmed(edge.source) && dimmed(edge.target) ? 0.14 : inFocus ? 0.95 : 0.4;
+          const opacity = inRoute ? 1 : dimmed(edge.source) && dimmed(edge.target) ? 0.14 : inFocus ? 0.95 : isSavedEdge ? 0.85 : 0.4;
           return <g key={i} opacity={opacity}>
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={inThread ? '#b7f04a' : inFocus ? '#cfe3c2' : '#435c48'} strokeWidth={inThread ? 2.2 : 1} />
+            <line className={inRoute ? 'inst-edge-flow' : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={inRoute ? '#b7f04a' : inFocus ? '#cfe3c2' : isSavedEdge ? '#ffc93c' : '#435c48'} strokeWidth={inRoute ? 2.2 : isSavedEdge ? 1.6 : 1} />
             <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={coarsePointer ? 32 : 13} style={{ cursor: 'pointer' }}
               onClick={(event) => {
                 event.stopPropagation();
@@ -525,8 +604,10 @@ export default function Instrumento() {
             onMouseEnter={() => setHovered(node.id)} onMouseLeave={() => setHovered(null)}
             onClick={(event) => { event.stopPropagation(); if (!dragRef.current?.moved) go(node.id); }}>
             <circle r={radius + (coarsePointer ? 16 : 6)} fill="transparent" />
-            {node.id === selectedId && <><circle r={radius + 7} fill="none" stroke="#b7f04a" strokeWidth={1.4} /><circle r={radius + 12} fill="none" stroke="#b7f04a" strokeOpacity={0.35} /></>}
-            <circle r={radius} fill={palette[node.type].fill} stroke={palette[node.type].stroke} strokeWidth={1.4} />
+            {node.id === selectedId && <><circle r={radius + 7} fill="none" stroke="#b7f04a" strokeWidth={1.4} /><circle className="inst-pulse" r={radius + 12} fill="none" stroke="#b7f04a" strokeOpacity={0.35} /></>}
+            {node.id !== selectedId && askHighlight.includes(node.id) && <circle r={radius + 7} fill="none" stroke="#e9f2e4" strokeOpacity={0.65} strokeWidth={1.1} strokeDasharray="3 4" />}
+            <circle r={radius} fill={palette[node.type].fill} stroke={schoolPalette[node.school].stroke} strokeWidth={2.3} />
+            {savedIds.has(node.id) && stepIndex < 0 && <circle cx={radius * 0.78} cy={radius * 0.78} r={4.4} fill="#ffc93c" stroke="#0a120d" strokeWidth={1.2} />}
             {node.initials && <text textAnchor="middle" dominantBaseline="central" fontFamily="'IBM Plex Mono', monospace" fontSize={10} fill={palette[node.type].ink}>{node.initials}</text>}
             {stepIndex >= 0 && <g transform={`translate(${radius * 0.85} ${-radius * 0.85})`}><circle r={10} fill="#b7f04a" /><text textAnchor="middle" dominantBaseline="central" fontSize={10} fontFamily="'IBM Plex Mono', monospace" fill="#11160c">{stepIndex + 1}</text></g>}
             {showLabel(node) && <text className={`inst-node-label ${node.id === selectedId ? 'sel' : ''}`} y={radius + 15} textAnchor="middle">{node.name.length > 26 ? `${node.name.slice(0, 25)}…` : node.name}</text>}
@@ -554,6 +635,8 @@ export default function Instrumento() {
       <nav className="inst-top" aria-label={`${t.map} · ${t.index}`}>
         <button aria-pressed={!indexOpen} onClick={() => setIndexOpen(false)}>{t.map}</button>
         <button aria-pressed={indexOpen} onClick={() => setIndexOpen(true)}>{t.index}</button>
+        <button onClick={surprise} title={ui.actions.surprise}>⚄ <span className="hidesm">{ui.actions.surprise}</span></button>
+        {askEnabled && <button aria-pressed={askOpen} onClick={() => setAskOpen(!askOpen)} title={ui.ask.open}>✦ <span className="hidesm">{ui.ask.eyebrow}</span></button>}
         <button onClick={exitPrototype}>{t.classicView}</button>
       </nav>
     </header>
@@ -567,7 +650,7 @@ export default function Instrumento() {
       </section>
       <section>
         <h3>{t.schools}</h3>
-        {SCHOOL_ORDER.map((school) => <button key={school} className="inst-opt" aria-pressed={schoolFilter === school} onClick={() => setSchoolFilter(schoolFilter === school ? 'all' : school)}>
+        {SCHOOL_ORDER.map((school) => <button key={school} className="inst-opt" style={{ color: schoolFilter === 'all' || schoolFilter === school ? schoolPalette[school].stroke : 'var(--fg2)' }} aria-pressed={schoolFilter === school} onClick={() => setSchoolFilter(schoolFilter === school ? 'all' : school)}>
           <span className="dot" />{schools[school]}<span className="n">{nodes.filter((node) => node.school === school).length}</span></button>)}
       </section>
       <section>
@@ -628,6 +711,9 @@ export default function Instrumento() {
       X {view.x.toFixed(1)} · Y {view.y.toFixed(1)}<br />{MODE_LABEL[mode]} · {visibleNodes.length} {t.nodesUpper}<br />{format(t.dataLine, { nodes: nodes.length, edges: edges.length })}
     </div>
 
+    {askPath.length > 1 && !activeThread && <div className="inst-guidechip"><span>{t.guideRoute} · {askPath.length}</span><button onClick={clearAskFocus}>{t.clearGuide} ✕</button></div>}
+    {notice && <div className="inst-toast" role="status">{notice}</div>}
+
     {insp && <div className="inst-insp" role="dialog" aria-label={t.relations} style={{ left: Math.min(insp.x + 14, window.innerWidth - 356), top: Math.max(84, insp.y - 20) }}>
       <button className="x" onClick={() => setInsp(null)}>✕</button>
       <span className={`st ${insp.edge.reference ? '' : 'ed'}`}>{insp.edge.reference ? t.directBadge : t.editorialBadge}</span>
@@ -640,6 +726,7 @@ export default function Instrumento() {
       {insp.edge.reference
         ? <a href={insp.edge.reference} target="_blank" rel="noreferrer">{t.seeReference}</a>
         : <span className="tiny">{t.editorialExplain}</span>}
+      <div style={{ marginTop: 10 }}><button className={`inst-insp-save ${savedEdgeSet.has(edgeId(insp.edge)) ? 'saved' : ''}`} aria-pressed={savedEdgeSet.has(edgeId(insp.edge))} onClick={() => toggleSaveEdge(insp.edge)}>{savedEdgeSet.has(edgeId(insp.edge)) ? `✓ ${t.savedRelation}` : `＋ ${t.saveRelation}`}</button></div>
     </div>}
 
     {indexOpen && <section className="inst-index" aria-label={t.indexTitle}>
@@ -657,6 +744,7 @@ export default function Instrumento() {
     </section>}
 
     {reportOpen && activeThread && renderReport(activeThread)}
+    {askOpen && askEnabled && <div className="inst-ask"><AskPanel selectedId={selectedId} onClose={() => setAskOpen(false)} onSelect={(node) => { setAskOpen(false); go(node.id); }} onPlan={applyAskPlan} onShowPath={showAskPath} onSaveCollection={saveAskCollection} /></div>}
     {blueprintOpen && selected && <Blueprint node={selected} onClose={() => setBlueprintOpen(false)} onGoNode={(id) => go(id)} />}
   </div>;
 }

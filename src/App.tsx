@@ -8,26 +8,13 @@ import Modal from './components/Modal';
 import NodeMark from './components/NodeMark';
 import { askEnabled } from './ai/client';
 import type { AskPlan } from './ai/contract';
-import { edges, palette, shapeById, type AtlasNode, type EntityType, type School } from './data/atlas';
+import { edges, palette, type AtlasNode, type EntityType, type School } from './data/atlas';
+import { COLLECTIONS_KEY as STORAGE_KEY, DEFAULT_COLLECTION_ID, readCollections, type Collection } from './data/collections';
 import { format, languageNames, languages, useI18n, type Language } from './i18n';
 
 type Page = 'graph' | 'authors' | 'concepts' | 'reading' | 'collection';
-type Collection = { id: string; name: string; nodeIds: string[] };
 type ModalName = 'about' | 'export' | 'create' | 'save' | null;
 type Dropdown = 'type' | 'school' | 'settings' | 'sort' | 'language' | null;
-const STORAGE_KEY = 'foresight-atlas-collections-v1';
-/** The built-in collection keeps this id so its name can follow the active language. */
-const DEFAULT_COLLECTION_ID = 'discoveries';
-const defaultCollections: Collection[] = [{ id: DEFAULT_COLLECTION_ID, name: '', nodeIds: [] }];
-
-function readCollections(): Collection[] {
-  try {
-    const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (!Array.isArray(raw)) return defaultCollections;
-    const valid = raw.filter((item): item is Collection => !!item && typeof item.id === 'string' && typeof item.name === 'string' && Array.isArray(item.nodeIds));
-    return valid.length ? valid.map((item) => ({ ...item, nodeIds: [...new Set(item.nodeIds.filter((id) => typeof id === 'string' && shapeById.has(id)))] })) : defaultCollections;
-  } catch { return defaultCollections; }
-}
 
 function BrandMark() {
   return <svg width="34" height="34" viewBox="0 0 40 40" fill="none" aria-hidden="true"><g stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M20 3v9m0 16v9M3 20h9m16 0h9M8 8l6.3 6.3m11.4 11.4L32 32M8 32l6.3-6.3m11.4-11.4L32 8" /></g><circle cx="20" cy="20" r="4" fill="currentColor" /><circle cx="20" cy="20" r="10" stroke="currentColor" strokeWidth="1.1" opacity=".35" /></svg>;

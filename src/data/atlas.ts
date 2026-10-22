@@ -47,6 +47,18 @@ export const palette = {
   method: { fill: '#f3e3cc', stroke: '#e3c9a5', ink: '#a3814d', soft: '#faf3e9' },
 };
 
+/** One vivid hue per school — the node's ring. Type keeps the pastel fill,
+ *  so the graph reads two encodings at once (fill = what it is, ring = its
+ *  tradition), the way the reference maps color nine categories. */
+export const schoolPalette: Record<School, { stroke: string; ink: string }> = {
+  foundations: { stroke: '#6ecbff', ink: '#7cc7ee' },
+  strategic: { stroke: '#b48cff', ink: '#bb9bf5' },
+  critical: { stroke: '#ff6f61', ink: '#f28273' },
+  systems: { stroke: '#3fd8c2', ink: '#4cc9b4' },
+  literacy: { stroke: '#ffc93c', ink: '#d9ab3a' },
+  experiential: { stroke: '#ff7ac2', ink: '#ef85c3' },
+};
+
 export const claSource = 'https://www.metafuture.org/causal-layered-analysis-2/';
 export const triangleSource = 'https://www.adb.org/sites/default/files/publication/579491/futures-thinking-asia-pacific-policy-makers.pdf';
 export const datorSource = 'https://jfsdigital.org/wp-content/uploads/2014/01/142-A01.pdf';
