@@ -12,7 +12,7 @@ Un grafo de conocimiento interactivo que conecta autores, conceptos y métodos d
 - **Cada conexión explica su porqué**: una frase de contexto por arista en los tres idiomas, visible en el perfil de cada nodo.
 - **Hilos**: 4 rutas de lectura curadas sobre conexiones reales (escenarios, crítica, sistemas, futuros experienciales).
 - **Planos de métodos**: 4 diagramas técnicos despiezables (Análisis Causal por Capas, Seis Pilares, Tres Horizontes y Triángulo de Futuros) con piezas inspeccionables que enlazan de vuelta al grafo, en los tres idiomas.
-- **Modo instrumento oscuro** (`#/instrumento`, botón en la barra lateral): el grafo a pantalla completa con cuatro aparatos de lectura —red, órbita, escuelas y cronología—, relaciones inspeccionables y los Hilos como expedientes en papel. Nace de la ingeniería inversa documentada en [`docs/ingenieria-inversa/`](docs/ingenieria-inversa/01-ingenieria-inversa-bl00d-money.md) y del [ADR 0002](docs/adr/0002-modo-instrumento-oscuro-hilos-y-contexto-por-arista.md).
+- **Modo instrumento oscuro** (`#/instrumento`, botón en la barra lateral): el grafo a pantalla completa con cuatro aparatos de lectura —red, órbita, escuelas y cronología—, relaciones inspeccionables y los Hilos como expedientes en papel. En el teléfono (≤760 px) se convierte en una **historia vertical**: hero con el grafo de fondo y secciones numeradas (el campo, los Hilos, los planos y un índice táctil). Nace de la ingeniería inversa documentada en [`docs/ingenieria-inversa/`](docs/ingenieria-inversa/01-ingenieria-inversa-bl00d-money.md) y del [ADR 0002](docs/adr/0002-modo-instrumento-oscuro-hilos-y-contexto-por-arista.md).
 - **Vista de lista** ordenable por nombre o por número de conexiones.
 - **Filtros** por tipo (autor / concepto / método) y por escuela de pensamiento, más búsqueda con sugerencias (`/` o `Cmd+K`).
 - **Colecciones** guardadas en `localStorage` del navegador, sin cuenta ni backend.
@@ -34,7 +34,7 @@ La decisión de arquitectura está razonada en [`docs/adr/0001-capa-semantica-ia
 
 React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Framer Motion · lucide-react · Cloudflare Workers + Gemini para la guía
 
-La compilación usa `vite-plugin-singlefile`, así que `dist/index.html` es un **único archivo autocontenido** (~655 KB, ~198 KB gzip) que funciona abriéndolo directamente o subiéndolo a cualquier hosting estático.
+La compilación usa `vite-plugin-singlefile`, así que `dist/index.html` es un **único archivo autocontenido** (~672 KB, ~201 KB gzip) que funciona abriéndolo directamente o subiéndolo a cualquier hosting estático.
 
 ## Desarrollo
 
@@ -56,6 +56,7 @@ src/
   instrument/
     Instrumento.tsx       modo instrumento oscuro: modos, HUD, inspector, Hilos
     Blueprint.tsx         planos despiezables de métodos (patrón «arsenal»)
+    Phone.tsx             la historia móvil: scroll narrado en ≤760 px
     instrumento.css       sistema visual del instrumento (todo bajo .inst)
     AskPanel.tsx          la guía: conversación, fichas de nodos, recorridos
     DetailPanel.tsx       perfil del nodo seleccionado y sus conexiones

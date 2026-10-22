@@ -290,6 +290,8 @@ export const uiPt: UiDict = {
     openBlueprint: 'Abrir a planta do método', blueprintInInstrument: 'Ver a planta no instrumento',
     bpKicker: 'Planta do método', bpExploded: 'EXPLODIDA', bpAssembled: 'MONTADA', bpParts: 'Peças',
     bpGoNode: 'Ver no mapa', bpAuthor: 'Método', bpHint: 'Toque numa peça do desenho ou da lista para a inspecionar; a vista explodida separa as partes como numa planta técnica.', bpExample: 'Vê-se assim', bpDepth: 'NÍVEL / PROFUNDIDADE →', bpPresence: 'PRESENÇA DO PADRÃO →', bpTime: 'TEMPO →',
+    phStart: 'Começar a ler ↓', phField: 'O campo', phThreads: 'Hilos para seguir', phBlueprints: 'Plantas de métodos', phExplore: 'Explorar o atlas',
+    phFull: 'Abrir o instrumento completo', phFullHint: 'Está a ler a versão história. O instrumento completo — o mapa manipulável com os seus quatro aparelhos de leitura — desfruta-se melhor num ecrã grande, mas também o pode abrir aqui.', phBack: '← VOLTAR', phAll: 'Tudo', phNodesShown: '{count} de {total} nós', phNoResults: 'Sem resultados para essa busca.',
   },
   defaultCollection: 'Minhas descobertas',
 };

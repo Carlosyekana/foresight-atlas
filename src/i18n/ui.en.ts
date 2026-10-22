@@ -290,6 +290,8 @@ export const uiEn: UiDict = {
     openBlueprint: 'Open the method blueprint', blueprintInInstrument: 'See the blueprint in the instrument',
     bpKicker: 'Method blueprint', bpExploded: 'EXPLODED', bpAssembled: 'ASSEMBLED', bpParts: 'Parts',
     bpGoNode: 'See on the map', bpAuthor: 'Method', bpHint: 'Touch a part of the drawing or the list to inspect it; the exploded view separates the parts like a technical blueprint.', bpExample: 'It looks like', bpDepth: 'LEVEL / DEPTH →', bpPresence: 'PRESENCE OF THE PATTERN →', bpTime: 'TIME →',
+    phStart: 'Start reading ↓', phField: 'The field', phThreads: 'Hilos to follow', phBlueprints: 'Method blueprints', phExplore: 'Explore the atlas',
+    phFull: 'Open the full instrument', phFullHint: 'You are reading the story version. The full instrument — the hands-on map with its four reading apparatuses — is best on a large screen, but you can also open it here.', phBack: '← BACK', phAll: 'All', phNodesShown: '{count} of {total} nodes', phNoResults: 'No results for that search.',
   },
   defaultCollection: 'My discoveries',
 };

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { edges, nodeShapes, palette, type AtlasEdge, type AtlasNode, type EntityType, type School } from '../data/atlas';
 import { format, useI18n, type AtlasThread } from '../i18n';
 import Blueprint from './Blueprint';
+import Phone from './Phone';
 import './instrumento.css';
 
 /**
@@ -59,13 +60,18 @@ export default function Instrumento() {
     const requested = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('node');
     return requested && nodeShapes.some((shape) => shape.id === requested) ? requested : null;
   });
-  const [panel, setPanel] = useState<Panel>(() => (new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('node') ? 'nodo' : 'campo'));
+  const [panel, setPanel] = useState<Panel>(() => {
+    const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+    return params.get('thread') ? 'hilo' : params.get('node') ? 'nodo' : 'campo';
+  });
   const [history, setHistory] = useState<string[]>([]);
   const [hovered, setHovered] = useState<string | null>(null);
   const [view, setView] = useState({ k: 0.92, x: 0, y: 0 });
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityType>>(new Set());
   const [schoolFilter, setSchoolFilter] = useState<School | 'all'>('all');
-  const [threadId, setThreadId] = useState<string | null>(null);
+  const [threadId, setThreadId] = useState<string | null>(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('thread'));
+  const [isPhone, setIsPhone] = useState(() => window.matchMedia('(max-width: 760px)').matches);
+  const [forceFull, setForceFull] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [blueprintOpen, setBlueprintOpen] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('blueprint') === '1');
   const [indexOpen, setIndexOpen] = useState(false);
@@ -99,6 +105,13 @@ export default function Instrumento() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [blueprintOpen, reportOpen, indexOpen, insp]);
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 760px)');
+    const onChange = (event: MediaQueryListEvent) => setIsPhone(event.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
 
   /* ---------- intro cinemática ---------- */
   useEffect(() => {
@@ -413,6 +426,10 @@ export default function Instrumento() {
   }
 
   const crumbs = selectedId ? [...history, selectedId] : history;
+
+  if (isPhone && !forceFull) {
+    return <Phone onOpenFull={() => setForceFull(true)} onExitClassic={exitPrototype} initialNodeId={selectedId} initialBlueprint={blueprintOpen} />;
+  }
 
   return <div className={`inst ${intro ? 'is-intro' : ''}`} ref={rootRef}>
     <div className="inst-grid-bg" />

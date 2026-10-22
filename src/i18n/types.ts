@@ -280,5 +280,7 @@ export interface UiDict {
     openBlueprint: string; blueprintInInstrument: string;
     bpKicker: string; bpExploded: string; bpAssembled: string; bpParts: string;
     bpGoNode: string; bpAuthor: string; bpHint: string; bpExample: string; bpDepth: string; bpPresence: string; bpTime: string;
+    phStart: string; phField: string; phThreads: string; phBlueprints: string; phExplore: string;
+    phFull: string; phFullHint: string; phBack: string; phAll: string; phNodesShown: string; phNoResults: string;
   };
 }

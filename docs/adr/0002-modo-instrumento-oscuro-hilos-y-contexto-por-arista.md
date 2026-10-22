@@ -37,13 +37,16 @@ largos tratados como objetos («case files») que se abren sobre el mapa.
   se listan los Hilos como rutas válidas.
 - Coste editorial asumido y recurrente: **toda arista o Hilo nuevo exige su texto en
   los tres idiomas** antes de publicarse (igual que ya pasa con los nodos).
-- El build single-file sube a ~655 KB (gzip ~198 KB) con el modo instrumento, los
-  textos y los planos. Si el modo se consolida, `Instrumento` deberá compartir el motor de
+- El build single-file sube a ~672 KB (gzip ~201 KB) con el modo instrumento, los
+  textos, los planos y la historia móvil. Si el modo se consolida, `Instrumento` deberá compartir el motor de
   `Graph.tsx` o cargarse bajo demanda.
 - El *chrome* del modo instrumento va por `ui.inst` en los tres idiomas (hecho en
   fase 3, junto con los **Planos de métodos** `PLN-01…04`: diagramas despiezables
   cuyas piezas enlazan de vuelta a nodos del grafo; estructura en `blueprintShapes`,
-  textos en `content.*.ts`). Pendiente conocido: la versión móvil tipo historia
-  (patrón N12).
+  textos en `content.*.ts`). La **historia móvil** (patrón N12) también está hecha:
+  en ≤760 px, `Phone.tsx` sustituye el instrumento por un scroll narrado (hero con
+  el grafo de fondo, secciones numeradas, dosisers a página completa) con el
+  instrumento completo a un toque. Pendiente: decidir si el modo oscuro pasa a ser
+  la portada del Atlas.
 - Se mantiene SVG con nodos enfocables: no se adopta el canvas del artefacto, que es
   inaccesible por teclado con solo 36 nodos que representar.

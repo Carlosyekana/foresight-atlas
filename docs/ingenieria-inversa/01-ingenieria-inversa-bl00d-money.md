@@ -280,9 +280,10 @@ el modo instrumento mantiene su propio SVG en vez de integrarse en `Graph.tsx` �
 en el ADR), fase 2 ✅ (Hilos como datos trilingües, `ctx` completo, contexto también en el
 panel clásico y en el prompt de la guía). Fase 3 (parcial) ✅: chrome del instrumento
 localizado vía `ui.inst` y «planos» de métodos (T11) para CLA, Seis Pilares, Tres
-Horizontes y Triángulo de Futuros, enlazados también desde el panel clásico. Queda:
-la historia móvil (T12 completo) y decidir si el instrumento desplaza a la vista
-clara como portada.
+Horizontes y Triángulo de Futuros, enlazados también desde el panel clásico; y la
+historia móvil (T12): en ≤760 px el instrumento es un scroll narrado con el grafo
+como fondo del hero (`src/instrument/Phone.tsx`). Queda una sola decisión abierta:
+si el instrumento desplaza a la vista clara como portada.
 
 ---
 
