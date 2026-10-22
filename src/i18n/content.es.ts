@@ -613,6 +613,14 @@ export const contentEs: ContentDict = {
       publicationTitle: 'The Thing From The Future',
       publicationKind: 'Stuart Candy y Jeff Watson',
     },
+    'javier-medina': {
+      name: 'Javier Medina Vásquez',
+      lines: ['Javier Medina', 'Vásquez'],
+      subtitle: 'Prospectivista y planificador del desarrollo',
+      description: 'Investigador colombiano y una de las referencias de la prospectiva latinoamericana. Doctor en Ciencias Sociales por la Pontificia Universidad Gregoriana, donde estudió previsión humana y social bajo la dirección de Eleonora Masini; fue profesor de la Universidad del Valle, jefe del Programa Nacional de Prospectiva Tecnológica e Industrial de Colciencias y coordinador de redes latinoamericanas de prospectiva e innovación.',
+      publicationTitle: 'Prospectiva y política pública para el cambio estructural en América Latina y el Caribe',
+      publicationKind: 'Libro de la CEPAL, con Steven Becerra y Paola Castaño',
+    },
   },
   edgeContexts: {
     'inayatullah--cla': 'Inayatullah crea el Análisis Causal por Capas en 1998: cuatro niveles —letanía, sistema, cosmovisión y mito— para leer un mismo asunto a distinta profundidad.',
@@ -759,6 +767,10 @@ export const contentEs: ContentDict = {
     'design-fiction--experiential-futures': 'Un prototipo diegético convierte un futuro abstracto en objeto o escena que puede tocarse, usarse un momento y discutirse con el cuerpo.',
     'futures-games--experiential-futures': 'El juego convierte el escenario en experiencia social: se habita un futuro durante una partida para sentir sus reglas, tensiones y artefactos.',
     'futures-games--participatory-futures': 'Unas reglas simples y compartidas bajan la barrera de entrada y reparten la imaginación del futuro entre todas las personas que juegan.',
+    'javier-medina--masini': 'Javier Medina hizo su doctorado en previsión humana y social bajo la dirección de Eleonora Barbieri Masini: esta arista es el puente latinoamericano de esa genealogía.',
+    'javier-medina--anticipatory-governance': 'En la CEPAL, Javier Medina defiende Estados capaces de anticipar, construir visiones compartidas y generar alertas, no solo de reaccionar ante las transformaciones globales.',
+    'javier-medina--participatory-futures': 'Su prospectiva latinoamericana apuesta por visiones compartidas de futuro y aprendizaje colectivo, frente a miradas unilaterales y cortoplacistas.',
+    'javier-medina--long-term-thinking': 'Su Manual de prospectiva y decisión estratégica recupera la visión de largo plazo como base para coordinar políticas públicas, innovación y desarrollo.',
   },
   threads: {
     escenarios: {

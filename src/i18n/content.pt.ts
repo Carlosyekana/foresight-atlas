@@ -613,6 +613,14 @@ export const contentPt: ContentDict = {
       publicationTitle: 'The Thing From The Future',
       publicationKind: 'Stuart Candy e Jeff Watson',
     },
+    'javier-medina': {
+      name: 'Javier Medina Vásquez',
+      lines: ['Javier Medina', 'Vásquez'],
+      subtitle: 'Prospectivista e planejador do desenvolvimento',
+      description: 'Investigador colombiano e uma das referências da prospectiva latino-americana. Doutor em Ciências Sociais pela Pontifícia Universidade Gregoriana, onde estudou previsão humana e social sob orientação de Eleonora Masini; foi professor da Universidad del Valle, chefe do Programa Nacional de Prospectiva Tecnológica e Industrial da Colciencias e coordenador de redes latino-americanas de prospectiva e inovação.',
+      publicationTitle: 'Prospectiva y política pública para el cambio estructural en América Latina y el Caribe',
+      publicationKind: 'Livro da CEPAL, com Steven Becerra e Paola Castaño',
+    },
   },
   edgeContexts: {
     'inayatullah--cla': 'Inayatullah cria a Análise Causal em Camadas em 1998: quatro níveis — litania, sistema, cosmovisão e mito — para ler um mesmo assunto em profundidades distintas.',
@@ -759,6 +767,10 @@ export const contentPt: ContentDict = {
     'design-fiction--experiential-futures': 'Um protótipo diegético transforma um futuro abstrato em objeto ou cena que pode ser tocado, usado por um momento e discutido com o corpo.',
     'futures-games--experiential-futures': 'O jogo transforma o cenário em experiência social: habita-se um futuro durante uma partida para sentir as suas regras, tensões e artefatos.',
     'futures-games--participatory-futures': 'Regras simples e partilhadas baixam a barreira de entrada e distribuem a imaginação do futuro por todas as pessoas que jogam.',
+    'javier-medina--masini': 'Javier Medina fez o doutorado em previsão humana e social sob orientação de Eleonora Barbieri Masini: esta aresta é a ponte latino-americana dessa genealogia.',
+    'javier-medina--anticipatory-governance': 'Na CEPAL, Javier Medina defende Estados capazes de antecipar, construir visões partilhadas e gerar alertas, não apenas reagir às transformações globais.',
+    'javier-medina--participatory-futures': 'A sua prospectiva latino-americana aposta em visões partilhadas de futuro e aprendizagem coletiva, contra olhares unilaterais e de curto prazo.',
+    'javier-medina--long-term-thinking': 'O seu Manual de prospectiva e decisão estratégica recupera a visão de longo prazo como base para coordenar políticas públicas, inovação e desenvolvimento.',
   },
   threads: {
     escenarios: {

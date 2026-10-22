@@ -6,7 +6,7 @@ Un grafo de conocimiento interactivo que conecta autores, conceptos y métodos d
 
 ## Qué incluye
 
-- **72 nodos y 144 conexiones** curados a mano: 28 autores, 26 conceptos y 18 métodos, distribuidos en seis escuelas (11–13 nodos cada una) y con publicaciones fechadas entre 1956 y 2024.
+- **73 nodos y 148 conexiones** curados a mano: 29 autores, 26 conceptos y 18 métodos, distribuidos en seis escuelas (11–13 nodos cada una) y con publicaciones fechadas entre 1956 y 2024. Al cargar, el sistema completo se presenta como un círculo de anillos concéntricos.
 - **Tres idiomas completos**: interfaz, nombres de conceptos, descripciones, preguntas y etiquetas de relación. La elección se recuerda en el navegador y actualiza el atributo `lang` del documento.
 - **Grafo SVG interactivo** con zoom, paneo, arrastre de nodos, minimapa y vista enfocada sobre un nodo y sus vecinos.
 - **Cada conexión explica su porqué**: una frase de contexto por arista en los tres idiomas, visible en el perfil de cada nodo.
@@ -34,7 +34,7 @@ La decisión de arquitectura está razonada en [`docs/adr/0001-capa-semantica-ia
 
 React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · Framer Motion · lucide-react · Cloudflare Workers + Gemini para la guía
 
-La compilación usa `vite-plugin-singlefile`, así que `dist/index.html` es un **único archivo autocontenido** (~811 KB, ~242 KB gzip) que funciona abriéndolo directamente o subiéndolo a cualquier hosting estático.
+La compilación usa `vite-plugin-singlefile`, así que `dist/index.html` es un **único archivo autocontenido** (~817 KB, ~244 KB gzip) que funciona abriéndolo directamente o subiéndolo a cualquier hosting estático.
 
 ## Desarrollo
 
