@@ -279,8 +279,9 @@ export default function Instrumento() {
       const point = svgPoint(event.clientX, event.clientY);
       setView((current) => {
         const k = Math.min(2.8, Math.max(0.45, current.k * Math.exp(-event.deltaY * 0.0014)));
-        const ratio = k / current.k;
-        return { k, x: point.x - W / 2 - (point.x - W / 2 - current.x) * ratio, y: point.y - H / 2 - (point.y - H / 2 - current.y) * ratio };
+        return { k,
+          x: (point.x - W / 2) / k - (point.x - W / 2) / current.k + current.x,
+          y: (point.y - H / 2) / k - (point.y - H / 2) / current.k + current.y };
       });
     };
     svg.addEventListener('wheel', onWheel, { passive: false });
@@ -295,12 +296,14 @@ export default function Instrumento() {
       setSelectedId(id);
     }
     setPanel('nodo'); setInsp(null); setPhotoTucked(false);
+    flyToNode(id);
   }
   function back() {
     const previous = history[history.length - 1];
     if (!previous) return;
     setHistory((stack) => stack.slice(0, -1));
     setSelectedId(previous); setPanel('nodo');
+    flyToNode(previous);
   }
   function openThread(thread: AtlasThread) {
     setThreadId(threadId === thread.id ? null : thread.id);
@@ -313,19 +316,33 @@ export default function Instrumento() {
   }
   function exitPrototype() { window.location.hash = '#/clasico'; }
 
-  /* La cámara vuela de vuelta a la vista inicial (×0.92, centrada). */
-  function flyHome() {
+  /* La cámara vuela (620 ms) a un destino; cualquier gesto la cancela. */
+  function flyToView(to: { k: number; x: number; y: number }) {
     if (viewAnimRef.current) cancelAnimationFrame(viewAnimRef.current);
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setView({ k: 0.92, x: 0, y: 0 }); return; }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setView(to); return; }
     const from = view;
     const start = performance.now();
     const step = (now: number) => {
       const t = Math.min(1, (now - start) / 620);
       const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-      setView({ k: from.k + (0.92 - from.k) * e, x: from.x * (1 - e), y: from.y * (1 - e) });
+      setView({ k: from.k + (to.k - from.k) * e, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e });
       viewAnimRef.current = t < 1 ? requestAnimationFrame(step) : 0;
     };
     viewAnimRef.current = requestAnimationFrame(step);
+  }
+  function flyHome() { flyToView({ k: 0.92, x: 0, y: 0 }); }
+
+  /* Al seleccionar, la cámara vuela y acerca la entidad (a la izquierda del
+     dossier) como en la referencia: clic = zoom + reorganización de la vista.
+     En ÓRBITA la reorganización la hace el layout (anillos alrededor del nuevo
+     centro) y la cámara solo vuelve a encuadrarla. */
+  function flyToNode(id: string) {
+    if (mode === 'orbita') { flyHome(); return; }
+    const point = targets.get(id) ?? positions.get(id);
+    if (!point) return;
+    const k = Math.min(2.2, Math.max(view.k, 1.5));
+    const aim = { x: W * 0.4, y: H / 2 };
+    flyToView({ k, x: (aim.x - W / 2) / k - (point.x - W / 2), y: (aim.y - H / 2) / k - (point.y - H / 2) });
   }
 
   /* Clic fuera de toda entidad: deseleccionar, que todo se ilumine de nuevo
@@ -464,7 +481,7 @@ export default function Instrumento() {
       <section className="inst-sec">
         <h4>{t.relations} <span>{connections.length}</span></h4>
         {connections.map((item) => <button key={item.node.id} className="inst-rel" onClick={() => go(item.node.id)}>
-          <span className="cdot" style={{ background: palette[item.node.type].fill, borderColor: schoolPalette[item.node.school].stroke }} />
+          <span className="cdot" style={{ background: schoolPalette[item.node.school].stroke, borderColor: schoolPalette[item.node.school].stroke }} />
           <span className="who">{item.node.name}</span><span className="yr">{item.node.publicationYear}</span>
           <span className="what">{item.relation}{edgeBetween(node.id, item.node.id)?.reference ? ` · ${t.directSource}` : ` · ${t.editorialAssoc}`}</span>
           {item.context && <span className="ctx">{item.context}</span>}
@@ -626,7 +643,7 @@ export default function Instrumento() {
           const x = 80 + ((year - 1962) / 62) * 810;
           return <g key={year}><line x1={x} y1={60} x2={x} y2={630} stroke="#1d2f23" strokeDasharray="3 6" /><text className="inst-axis" x={x} y={655} textAnchor="middle">{year}</text></g>;
         })}
-        {mode === 'escuelas' && SCHOOL_ORDER.map((school) => <text key={school} className="inst-territory" x={SCHOOL_CENTERS[school].x} y={SCHOOL_CENTERS[school].y - 108} textAnchor="middle">{schools[school]}</text>)}
+        {mode === 'escuelas' && SCHOOL_ORDER.map((school) => <text key={school} className="inst-territory" style={{ fill: schoolPalette[school].stroke, opacity: 0.6 }} x={SCHOOL_CENTERS[school].x} y={SCHOOL_CENTERS[school].y - 108} textAnchor="middle">{schools[school]}</text>)}
         {mode === 'orbita' && [185, 305, 395].map((radius) => <ellipse key={radius} cx={W / 2} cy={H / 2} rx={radius} ry={radius * 0.74} fill="none" stroke="#1d2f23" strokeDasharray="2 7" />)}
         {visibleEdges.map((edge, i) => {
           const a = positions.get(edge.source); const b = positions.get(edge.target);
@@ -635,10 +652,14 @@ export default function Instrumento() {
           const inRoute = threadEdgeKeys.has(key) || askPathEdgeKeys.has(key);
           const isSavedEdge = savedEdgeSet.has(edgeId(edge));
           const inFocus = !!activeId && (edge.source === activeId || edge.target === activeId);
-          const opacity = inRoute ? 1 : dimmed(edge.source) && dimmed(edge.target) ? 0.14 : inFocus ? 0.95 : isSavedEdge ? 0.85 : 0.4;
+          const opacity = inRoute ? 1 : dimmed(edge.source) && dimmed(edge.target) ? 0.14 : inFocus ? 0.95 : isSavedEdge ? 0.85 : 0.55;
+          const dx = b.x - a.x; const dy = b.y - a.y; const dist = Math.hypot(dx, dy) || 1;
+          const bend = (i % 2 === 0 ? 1 : -1) * dist * 0.07;
+          const d = `M${a.x} ${a.y} Q${(a.x + b.x) / 2 + (-dy / dist) * bend} ${(a.y + b.y) / 2 + (dx / dist) * bend} ${b.x} ${b.y}`;
+          const srcHue = schoolPalette[nodeById.get(edge.source)?.school ?? 'foundations'].stroke;
           return <g key={i} opacity={opacity}>
-            <line className={inRoute ? 'inst-edge-flow' : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={inRoute ? '#b7f04a' : inFocus ? '#cfe3c2' : isSavedEdge ? '#ffc93c' : '#435c48'} strokeWidth={inRoute ? 2.2 : isSavedEdge ? 1.6 : 1} />
-            <line data-edge={edgeId(edge)} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={coarsePointer ? 32 : 13} style={{ cursor: 'pointer' }}
+            <path className={inRoute ? 'inst-edge-flow' : undefined} d={d} fill="none" stroke={inRoute ? '#b7f04a' : isSavedEdge ? '#ffc93c' : srcHue} strokeOpacity={inRoute || isSavedEdge || inFocus ? 0.95 : 0.45} strokeWidth={inRoute ? 2.2 : isSavedEdge ? 1.6 : 1.1} />
+            <path data-edge={edgeId(edge)} d={d} fill="none" stroke="transparent" strokeWidth={coarsePointer ? 32 : 13} style={{ cursor: 'pointer' }}
               onClick={(event) => {
                 event.stopPropagation();
                 const rect = rootRef.current!.getBoundingClientRect();
@@ -654,11 +675,16 @@ export default function Instrumento() {
             onMouseEnter={() => setHovered(node.id)} onMouseLeave={() => setHovered(null)}
             onClick={(event) => { event.stopPropagation(); if (!dragRef.current?.moved) go(node.id); }}>
             <circle r={radius + (coarsePointer ? 16 : 6)} fill="transparent" />
+            <circle r={radius * 1.6} fill={schoolPalette[node.school].stroke} opacity={0.15} />
             {node.id === selectedId && <><circle r={radius + 7} fill="none" stroke="#b7f04a" strokeWidth={1.4} /><circle className="inst-pulse" r={radius + 12} fill="none" stroke="#b7f04a" strokeOpacity={0.35} /></>}
             {node.id !== selectedId && askHighlight.includes(node.id) && <circle r={radius + 7} fill="none" stroke="#e9f2e4" strokeOpacity={0.65} strokeWidth={1.1} strokeDasharray="3 4" />}
-            <circle r={radius} fill={palette[node.type].fill} stroke={schoolPalette[node.school].stroke} strokeWidth={2.3} />
+            {node.type === 'method'
+              ? <path d={`M0 ${-radius} L${radius * 0.8} 0 L0 ${radius} L${-radius * 0.8} 0 Z`} fill={schoolPalette[node.school].stroke} />
+              : node.type === 'concept'
+                ? <><circle r={radius * 0.8} fill="none" stroke={schoolPalette[node.school].stroke} strokeWidth={radius * 0.36} /><circle r={radius * 0.2} fill={schoolPalette[node.school].stroke} /></>
+                : <circle r={radius} fill={schoolPalette[node.school].stroke} />}
             {savedIds.has(node.id) && stepIndex < 0 && <circle cx={radius * 0.78} cy={radius * 0.78} r={4.4} fill="#ffc93c" stroke="#0a120d" strokeWidth={1.2} />}
-            {node.initials && <text textAnchor="middle" dominantBaseline="central" fontFamily="'IBM Plex Mono', monospace" fontSize={10} fill={palette[node.type].ink}>{node.initials}</text>}
+            {node.initials && <text textAnchor="middle" dominantBaseline="central" fontFamily="'IBM Plex Mono', monospace" fontWeight={600} fontSize={Math.max(9, radius * 0.66)} fill="#0a120d">{node.initials}</text>}
             {stepIndex >= 0 && <g transform={`translate(${radius * 0.85} ${-radius * 0.85})`}><circle r={10} fill="#b7f04a" /><text textAnchor="middle" dominantBaseline="central" fontSize={10} fontFamily="'IBM Plex Mono', monospace" fill="#11160c">{stepIndex + 1}</text></g>}
             {showLabel(node) && <text className={`inst-node-label ${node.id === selectedId ? 'sel' : ''}`} y={radius + 15} textAnchor="middle">{node.name.length > 26 ? `${node.name.slice(0, 25)}…` : node.name}</text>}
           </g>;
@@ -694,14 +720,14 @@ export default function Instrumento() {
     <aside className="inst-rail" aria-label={t.types}>
       <section>
         <h3>{t.types} <span>{visibleNodes.length}/{nodes.length}</span></h3>
-        {typeCounts.map(({ type, count }) => <button key={type} className="inst-opt" style={{ color: hiddenTypes.has(type) ? 'var(--fg2)' : palette[type].stroke }} aria-pressed={!hiddenTypes.has(type)}
+        {typeCounts.map(({ type, count }) => <button key={type} className="inst-opt" style={{ color: hiddenTypes.has(type) ? 'var(--fg3)' : 'var(--fg)' }} aria-pressed={!hiddenTypes.has(type)}
           onClick={() => setHiddenTypes((current) => { const next = new Set(current); if (next.has(type)) next.delete(type); else next.add(type); return next; })}>
-          <span className="dot" />{typePlurals[type]}<span className="n">{count}</span></button>)}
+          <span className="glyph">{type === 'author' ? '●' : type === 'method' ? '◆' : '◎'}</span>{typePlurals[type]}<span className="n">{count}</span></button>)}
       </section>
       <section>
         <h3>{t.schools}</h3>
         {SCHOOL_ORDER.map((school) => <button key={school} className="inst-opt" style={{ color: schoolFilter === 'all' || schoolFilter === school ? schoolPalette[school].stroke : 'var(--fg2)' }} aria-pressed={schoolFilter === school} onClick={() => setSchoolFilter(schoolFilter === school ? 'all' : school)}>
-          <span className="dot" />{schools[school]}<span className="n">{nodes.filter((node) => node.school === school).length}</span></button>)}
+          <span className="dot" style={{ background: schoolPalette[school].stroke, borderColor: schoolPalette[school].stroke }} />{schools[school]}<span className="n">{nodes.filter((node) => node.school === school).length}</span></button>)}
       </section>
       <section>
         <h3>{t.threadsFiles} <span>{threads.length}</span></h3>

@@ -143,10 +143,10 @@ export default function Phone({ onOpenFull, onExitClassic, initialNodeId, initia
         {edges.map((edge, i) => {
           const a = nodeShapes.find((shape) => shape.id === edge.source)!;
           const b = nodeShapes.find((shape) => shape.id === edge.target)!;
-          return <line key={i} x1={a.x} y1={a.y * 0.88 + 16} x2={b.x} y2={b.y * 0.88 + 16} stroke="#3c5745" strokeWidth={1} opacity={0.7} />;
+          return <line key={i} x1={a.x} y1={a.y * 0.88 + 16} x2={b.x} y2={b.y * 0.88 + 16} stroke={schoolPalette[nodeById.get(edge.source)?.school ?? 'foundations'].stroke} strokeWidth={1} opacity={0.4} />;
         })}
         {nodes.map((node) => <g key={node.id} onClick={() => openNode(node.id)} style={{ cursor: 'pointer' }}>
-          <circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius + 18} fill="transparent" /><circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius * 0.95} fill={palette[node.type].fill} stroke={schoolPalette[node.school].stroke} strokeWidth={2.2} />
+          <circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius + 18} fill="transparent" /><circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius * 1.5} fill={schoolPalette[node.school].stroke} opacity={0.16} /><circle cx={node.x} cy={node.y * 0.88 + 16} r={node.radius * 0.95} fill={schoolPalette[node.school].stroke} />
           {(degree.get(node.id) ?? 0) >= 4 && <text x={node.x} y={node.y * 0.88 + 16 + node.radius + 14} textAnchor="middle" className="inst-node-label">{node.name}</text>}
         </g>)}
       </svg>

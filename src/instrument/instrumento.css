@@ -405,3 +405,4 @@
 .ph-hero-net { animation: ph-herodrift 26s ease-in-out infinite alternate; }
 @keyframes ph-herodrift { from { transform: translate3d(-7px, 3px, 0) scale(1.015); } to { transform: translate3d(6px, -5px, 0) scale(1.03); } }
 .inst.ph .inst-toast { position: fixed; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
+.inst-opt .glyph { flex: none; width: 12px; text-align: center; font-size: 10px; line-height: 1; }
