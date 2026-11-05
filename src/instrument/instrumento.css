@@ -28,12 +28,21 @@
 .inst-node { cursor: pointer; }
 .inst-node-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .05em; fill: var(--fg2); text-transform: uppercase; pointer-events: none; }
 .inst-node-label.sel { fill: var(--signal); }
+.inst-node-label { paint-order: stroke; stroke: rgba(8, 14, 10, .88); stroke-width: 3.5px; stroke-linejoin: round; }
+.inst-node-sub { font-family: var(--mono); letter-spacing: .04em; fill: var(--fg3); paint-order: stroke; stroke: rgba(8, 14, 10, .88); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.inst-ring-caption { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; fill: var(--signal); fill-opacity: .72; pointer-events: none; }
+.inst-legend { display: grid; gap: 7px; margin-top: 14px; font: 9.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--fg3); }
+.inst-legend span { display: flex; align-items: center; gap: 9px; }
+.inst-legend i { width: 22px; height: 0; border-top: 1.5px solid var(--fg2); }
+.inst-legend i.dashed { border-top-style: dashed; }
 .inst-axis { font-family: var(--mono); font-size: 10px; fill: var(--fg3); letter-spacing: .1em; }
 .inst-territory { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; fill: rgba(183,240,74,.4); text-transform: uppercase; }
 
 /* --- intro cinemática --- */
 .inst-intro-veil { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity 1.2s ease; }
 .inst.is-intro .inst-intro-veil { opacity: 1; }
+/* Primero el dial en silencio (nodos entrando uno a uno); la tesis aparece al estallar la red. */
+.inst.is-dial .inst-intro-veil { opacity: 0; }
 .inst-intro-veil div { text-align: center; }
 .inst-intro-veil h1 { font-family: var(--disp); font-weight: 500; font-size: clamp(38px, 6vw, 72px); letter-spacing: -.03em; margin: 12px 0 10px; }
 .inst-intro-veil h1 em { font-style: normal; color: var(--signal); }

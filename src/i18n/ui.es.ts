@@ -265,7 +265,7 @@ export const uiEs: UiDict = {
     types: 'Tipos', schools: 'Escuelas', threadsFiles: 'Hilos · expedientes', guidedRoutes: 'Rutas guiadas por el campo',
     railHint: 'Toca una línea del grafo: cada relación declara su prueba — fuente directa o asociación editorial.',
     names: 'NOMBRES', namesOff: 'NO', namesKey: 'Clave', namesAll: 'TODOS',
-    zoomSystem: 'SISTEMA', zoomConstellation: 'Constelación', zoomNode: 'NODO',
+    zoomSystem: 'SISTEMA', zoomConstellation: 'CONSTELACIÓN', zoomNode: 'NODO', zoomSource: 'FUENTE',
     modeNetwork: 'RED', modeOrbit: 'ÓRBITA', modeSchools: 'ESCUELAS', modeTimeline: 'CRONOLOGÍA', modesLabel: 'Aparato de lectura',
     nodesUpper: 'NODOS', dataLine: 'DATOS · {nodes} NODOS / {edges} RELACIONES', world: 'MUNDO', backTitle: 'Volver al nodo anterior',
     skipIntro: 'Saltar la introducción', introKicker: 'Foresight Atlas · Modo instrumento', introTitleA: 'Los futuros,', introTitleB: 'conectados.', introMeta: '{nodes} nodos · {edges} relaciones · 6 escuelas · {years}',

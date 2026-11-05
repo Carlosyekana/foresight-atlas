@@ -256,7 +256,7 @@ export interface UiDict {
     searchPlaceholder: string; searchLabel: string;
     types: string; schools: string; threadsFiles: string; guidedRoutes: string; railHint: string;
     names: string; namesOff: string; namesKey: string; namesAll: string;
-    zoomSystem: string; zoomConstellation: string; zoomNode: string;
+    zoomSystem: string; zoomConstellation: string; zoomNode: string; zoomSource: string;
     modeNetwork: string; modeOrbit: string; modeSchools: string; modeTimeline: string; modesLabel: string;
     nodesUpper: string; dataLine: string; world: string; backTitle: string;
     skipIntro: string; introKicker: string; introTitleA: string; introTitleB: string; introMeta: string;

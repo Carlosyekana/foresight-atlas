@@ -11,6 +11,8 @@ ya está hecho: el método que se va a aplicar y la línea base contra la que se
 
 ---
 
+> **Nota (2026-11):** las cifras de la línea base (36 nodos, 62 aristas) son históricas; hoy son 73 y 148. Seguimiento en [`02`](./02-reanalisis-y-refinamientos.md) y guía de traslado a Yekana en [`03`](./03-guia-portabilidad-yekana.md).
+
 ## 1. Método de ingeniería inversa (7 capas)
 
 Cada hallazgo del artefacto se documentará con **evidencia** (captura, fragmento de

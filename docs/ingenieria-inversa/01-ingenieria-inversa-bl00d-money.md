@@ -8,6 +8,8 @@
 > grafo sigue siendo el centro · **Línea base del Atlas:** ver
 > [`00-linea-base-atlas-y-metodo.md`](./00-linea-base-atlas-y-metodo.md).
 
+> **Errata (2026-11):** este documento se escribió sin poder leer el JS de la referencia y con 36 nodos / 62 relaciones. Ver [`02-reanalisis-y-refinamientos.md`](./02-reanalisis-y-refinamientos.md): la referencia usa d3-force/d3-zoom, tiene 4 niveles de zoom y el clic reorganiza en órbita. Cifras actuales del Atlas: 73 nodos y 148 relaciones.
+
 ### Método y límites de la evidencia
 
 Se inspeccionaron el HTML completo que sirve el origen (una sola página autocontenida), todo su
