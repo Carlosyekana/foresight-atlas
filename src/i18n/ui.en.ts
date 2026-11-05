@@ -265,7 +265,7 @@ export const uiEn: UiDict = {
     types: 'Types', schools: 'Schools', threadsFiles: 'Hilos · reading files', guidedRoutes: 'Guided routes through the field',
     railHint: 'Touch a line on the graph: every relationship declares its evidence — direct source or editorial association.',
     names: 'NAMES', namesOff: 'OFF', namesKey: 'KEY', namesAll: 'ALL',
-    zoomSystem: 'SYSTEM', zoomConstellation: 'Constellation', zoomNode: 'NODE',
+    zoomSystem: 'SYSTEM', zoomConstellation: 'CONSTELLATION', zoomNode: 'NODE', zoomSource: 'SOURCE',
     modeNetwork: 'NETWORK', modeOrbit: 'ORBIT', modeSchools: 'SCHOOLS', modeTimeline: 'TIMELINE', modesLabel: 'Reading apparatus',
     nodesUpper: 'NODES', dataLine: 'DATA · {nodes} NODES / {edges} RELATIONSHIPS', world: 'WORLD', backTitle: 'Back to the previous node',
     skipIntro: 'Skip the introduction', introKicker: 'Foresight Atlas · Instrument mode', introTitleA: 'The futures,', introTitleB: 'connected.', introMeta: '{nodes} nodes · {edges} relationships · 6 schools · {years}',

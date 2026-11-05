@@ -7,7 +7,8 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:engine": "esbuild scripts/check-engine.ts --bundle --platform=node --format=esm --log-level=error --outfile=.vite/check-engine.mjs && node .vite/check-engine.mjs"
   },
   "dependencies": {
     "clsx": "2.1.1",

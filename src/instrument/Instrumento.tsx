@@ -5,6 +5,9 @@ import AskPanel from '../components/AskPanel';
 import { askEnabled } from '../ai/client';
 import type { AskPlan } from '../ai/contract';
 import { format, useI18n, type AtlasThread } from '../i18n';
+import { centerOn, clampK, fitView, toScreen, zoomLevel, type Lane, type View } from './engine/camera';
+import { planLabels, textBox, type LabelCandidate } from './engine/labels';
+import { clusterLayout, dialLayout, gridCenters, orbitLayout, rotateAround, timelineLayout, type OrbitLayout, type Point } from './engine/layout';
 import Blueprint from './Blueprint';
 import Phone from './Phone';
 import './instrumento.css';
@@ -13,26 +16,29 @@ import './instrumento.css';
  * «Modo instrumento» — la lectura oscura del Atlas y su portada desde el ADR 0002
  * (la vista clásica clara vive en #/clasico).
  * Traslada los patrones narrativos de BL00D.MONEY
- * (docs/ingenieria-inversa/01-*.md, ADR 0002) sobre los datos reales:
+ * (docs/ingenieria-inversa/01-*.md y 02-*.md, ADR 0002) sobre los datos reales:
  * mundo full-bleed, modos-pregunta, zoom semántico, dossier-campo,
  * relaciones inspeccionables con su frase de contexto, e Hilos
  * (expedientes de lectura) con informe en papel.
- * Pendiente: localizar el chrome de esta vista (hoy en español; el
- * contenido del atlas —nodos, hilos y contextos— ya va por i18n).
+ *
+ * Reparto de responsabilidades (ver docs/…/03-guia-portabilidad-yekana.md):
+ *  - engine/layout.ts   dónde va cada nodo en cada modo (puro)
+ *  - engine/labels.ts   qué nombres se ven y dónde, en píxeles de pantalla (puro)
+ *  - engine/camera.ts   encuadre, zoom semántico (puro)
+ *  - este archivo       estado, gestos y render SVG
  */
 
 type Mode = 'red' | 'orbita' | 'escuelas' | 'cronologia';
 type Panel = 'campo' | 'nodo' | 'hilo';
 type LabelMode = 'off' | 'key' | 'all';
-type Point = { x: number; y: number };
 
 const W = 960;
 const H = 690;
+const WORLD = { w: W, h: H };
+const CENTER: Point = { x: W / 2, y: H / 2 };
 const SCHOOL_ORDER: School[] = ['foundations', 'strategic', 'critical', 'systems', 'literacy', 'experiential'];
-const SCHOOL_CENTERS: Record<School, Point> = {
-  foundations: { x: 200, y: 180 }, strategic: { x: 480, y: 180 }, critical: { x: 760, y: 180 },
-  systems: { x: 200, y: 505 }, literacy: { x: 480, y: 505 }, experiential: { x: 760, y: 505 },
-};
+const SCHOOL_CENTERS = gridCenters(SCHOOL_ORDER, 3, { x0: 60, x1: 900, y0: 17.5, y1: 667.5 });
+const TYPE_ORDER: EntityType[] = ['author', 'concept', 'method'];
 const MODES: Mode[] = ['red', 'orbita', 'escuelas', 'cronologia'];
 const CODE_PREFIX: Record<EntityType, string> = { author: 'AUT', concept: 'CON', method: 'MET' };
 const FIELD_YEARS = nodeShapes
@@ -41,24 +47,28 @@ const FIELD_YEARS = nodeShapes
 const FIELD_YEAR_RANGE = { start: Math.min(...FIELD_YEARS), end: Math.max(...FIELD_YEARS) };
 const TIMELINE_START = Math.floor(FIELD_YEAR_RANGE.start / 10) * 10;
 const TIMELINE_END = Math.ceil(FIELD_YEAR_RANGE.end / 10) * 10;
-const timelineX = (year: number) => 80 + (((Math.min(TIMELINE_END, Math.max(TIMELINE_START, year)) - TIMELINE_START) / (TIMELINE_END - TIMELINE_START)) * 810);
+const TIMELINE_LANES: Record<EntityType, number> = { author: 165, concept: 345, method: 525 };
+/** Ancho de un carácter de la etiqueta mono (IBM Plex Mono: 0.6 em + tracking .05 em). */
+const charWidth = (fontPx: number) => fontPx * 0.65;
+/** Velocidad de la deriva global de la red en reposo (rad/s), como el «spin» de la referencia. */
+const SPIN_RATE = 0.0085;
+/** Aire (unidades de mundo) alrededor de la órbita al encuadrar: deja sitio a las etiquetas laterales. */
+const ORBIT_FRAME = { padX: 170, padY: 120 };
+const INTRO_DIAL_MS = 1500;
+const INTRO_TOTAL_MS = 4200;
 
 function codeOf(node: AtlasNode) {
   const index = nodeShapes.findIndex((shape) => shape.id === node.id) + 1;
   return `${CODE_PREFIX[node.type]}-${String(index).padStart(3, '0')}`;
 }
 
-function bfsDistances(center: string) {
-  const dist = new Map<string, number>([[center, 0]]);
-  const queue = [center];
-  while (queue.length) {
-    const current = queue.shift()!;
-    edges.forEach((edge) => {
-      const next = edge.source === current ? edge.target : edge.target === current ? edge.source : null;
-      if (next && !dist.has(next)) { dist.set(next, dist.get(current)! + 1); queue.push(next); }
-    });
-  }
-  return dist;
+/** Sincroniza la URL con la selección sin crear historial ni disparar `hashchange`. */
+function syncHash(nodeId: string | null, threadId: string | null) {
+  const params = new URLSearchParams();
+  if (nodeId) params.set('node', nodeId);
+  if (threadId) params.set('thread', threadId);
+  const query = params.toString();
+  try { window.history.replaceState(null, '', `#/instrumento${query ? `?${query}` : ''}`); } catch { /* sandbox sin History API */ }
 }
 
 export default function Instrumento() {
@@ -70,7 +80,13 @@ export default function Instrumento() {
     if (window.location.hash.includes('?')) return false; // deep link: straight to the point
     try { return sessionStorage.getItem('fa-intro-seen') !== '1'; } catch { return true; }
   });
-  const [mode, setMode] = useState<Mode>('red');
+  // `burst`: durante la intro, false = los nodos esperan en el dial; true = estallan hacia la red.
+  const [burst, setBurst] = useState(() => !intro);
+  // Un enlace profundo ?node=… abre ya en ÓRBITA (clic = el nodo pasa al centro), no en la red.
+  const [mode, setMode] = useState<Mode>(() => {
+    const requested = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('node');
+    return requested && nodeShapes.some((shape) => shape.id === requested) && !new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('thread') ? 'orbita' : 'red';
+  });
   const [labels, setLabels] = useState<LabelMode>('key');
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     const requested = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('node');
@@ -82,7 +98,7 @@ export default function Instrumento() {
   });
   const [history, setHistory] = useState<string[]>([]);
   const [hovered, setHovered] = useState<string | null>(null);
-  const [view, setView] = useState({ k: 0.92, x: 0, y: 0 });
+  const [view, setView] = useState<View>({ k: 0.92, x: 0, y: 0 });
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityType>>(new Set());
   const [schoolFilter, setSchoolFilter] = useState<School | 'all'>('all');
   const [threadId, setThreadId] = useState<string | null>(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('thread'));
@@ -117,6 +133,12 @@ export default function Instrumento() {
   const pressRef = useRef<{ nodeId: string | null; edge: AtlasEdge | null } | null>(null);
   const suppressClickRef = useRef(false);
   const viewAnimRef = useRef(0);
+  const laneRef = useRef<Lane>({ left: 0, right: W, top: 0, bottom: H });
+  const thetaRef = useRef(0);            // ángulo de la deriva global (rad)
+  const hoverRef = useRef<string | null>(null);
+  const spinOnRef = useRef(false);
+  const introStartRef = useRef(performance.now());
+  const introTweenRef = useRef(false);   // true mientras dura el estallido del dial
 
   const selected = selectedId ? nodeById.get(selectedId) : undefined;
   const activeThread: AtlasThread | undefined = threads.find((thread) => thread.id === threadId);
@@ -149,7 +171,8 @@ export default function Instrumento() {
   }, []);
 
   function finishIntro() {
-    setIntro(false);
+    introTweenRef.current = false;
+    setIntro(false); setBurst(true);
     try { sessionStorage.setItem('fa-intro-seen', '1'); } catch { /* session only */ }
   }
 
@@ -170,73 +193,64 @@ export default function Instrumento() {
   const savedIds = useMemo(() => new Set(collections.flatMap((item) => item.nodeIds)), [collections]);
   const savedEdgeSet = useMemo(() => new Set(savedEdgeIds), [savedEdgeIds]);
 
-  /* ---------- intro cinemática ---------- */
+  /* ---------- intro cinemática: dial → estallido ---------- */
   useEffect(() => {
     if (!intro) return;
-    const timer = window.setTimeout(finishIntro, 3000);
-    return () => window.clearTimeout(timer);
+    introStartRef.current = performance.now();
+    const burstTimer = window.setTimeout(() => { introTweenRef.current = true; setBurst(true); }, INTRO_DIAL_MS + 150);
+    const endTimer = window.setTimeout(finishIntro, INTRO_TOTAL_MS);
+    return () => { window.clearTimeout(burstTimer); window.clearTimeout(endTimer); };
   }, [intro]);
 
-  /* ---------- modos = aparatos de lectura ---------- */
-  const targets = useMemo(() => {
-    const map = new Map<string, Point>();
-    if (mode === 'orbita') {
-      const centerId = selectedId ?? 'inayatullah';
-      const dist = bfsDistances(centerId);
-      const rings = new Map<number, AtlasNode[]>();
-      nodes.forEach((node) => {
-        const d = Math.min(dist.get(node.id) ?? 4, 4);
-        rings.set(d, [...(rings.get(d) ?? []), node]);
-      });
-      const radii = [0, 185, 305, 395, 450];
-      rings.forEach((ring, d) => ring.forEach((node, i) => {
-        if (d === 0) { map.set(node.id, { x: W / 2, y: H / 2 }); return; }
-        const angle = (i / ring.length) * Math.PI * 2 - Math.PI / 2;
-        map.set(node.id, { x: W / 2 + Math.cos(angle) * radii[d], y: H / 2 + Math.sin(angle) * radii[d] * 0.74 });
-      }));
-      return map;
-    }
-    if (mode === 'escuelas') {
-      SCHOOL_ORDER.forEach((school) => {
-        const members = nodes.filter((node) => node.school === school);
-        const center = SCHOOL_CENTERS[school];
-        const radius = 46 + members.length * 6;
-        members.forEach((node, i) => {
-          const angle = (i / members.length) * Math.PI * 2 - Math.PI / 2;
-          map.set(node.id, { x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius * 0.82 });
-        });
-      });
-      return map;
-    }
-    if (mode === 'cronologia') {
-      const lanes: Record<EntityType, number> = { author: 165, concept: 345, method: 525 };
-      const stacks = new Map<string, number>();
-      const counts = new Map<string, number>();
-      nodes.forEach((node) => counts.set(`${node.publicationYear}-${node.type}`, (counts.get(`${node.publicationYear}-${node.type}`) ?? 0) + 1));
-      nodes.forEach((node) => {
-        const key = `${node.publicationYear}-${node.type}`;
-        const i = stacks.get(key) ?? 0; stacks.set(key, i + 1);
-        const parsedYear = Number.parseInt(node.publicationYear, 10);
-        const year = Number.isFinite(parsedYear) ? parsedYear : TIMELINE_START;
-        const x = timelineX(year);
-        const y = lanes[node.type] + (i - ((counts.get(key)! - 1) / 2)) * 44;
-        map.set(node.id, { x, y });
-      });
-      return map;
-    }
-    nodes.forEach((node) => map.set(node.id, { x: node.x, y: node.y * 0.88 + 16 }));
-    return map;
-  }, [mode, nodes, selectedId]);
+  /* ---------- modos = aparatos de lectura (el cálculo vive en engine/layout.ts) ---------- */
+  const timeline = useMemo(() => timelineLayout({
+    nodes, lanes: TIMELINE_LANES, start: TIMELINE_START, end: TIMELINE_END,
+    yearOf: (node) => { const year = Number.parseInt(nodeById.get(node.id)?.publicationYear ?? '', 10); return Number.isFinite(year) ? year : null; },
+  }), [nodes, nodeById]);
+  const dial = useMemo(() => dialLayout(nodes, TYPE_ORDER, degree, CENTER, 142), [nodes, degree]);
+  const dialRank = useMemo(() => new Map(dial.order.map((id, index) => [id, index])), [dial]);
 
-  /* posiciones animadas entre modos (0.88s, ease-in-out) */
+  /** Órbita alrededor de `centerId`; la comparten el layout, el encuadre de cámara y el dibujo de anillos. */
+  function buildOrbit(centerId: string): OrbitLayout {
+    const verbs = new Map(getConnections(centerId).map((item) => [item.node.id, item.relation]));
+    return orbitLayout({
+      centerId, nodes, edges, typeOrder: TYPE_ORDER, degree, center: CENTER,
+      // la etiqueta de un vecino son dos líneas: nombre (10.5 px) y verbo de la relación (9 px)
+      labelWidth: (id) => Math.max((nodeById.get(id)?.name.length ?? 8) * charWidth(10.5), (verbs.get(id)?.length ?? 0) * charWidth(9)) + 12,
+    });
+  }
+  const orbitCenterId = selectedId ?? 'inayatullah';
+  const layout = useMemo((): { map: Map<string, Point>; orbit: OrbitLayout | null } => {
+    if (intro && !burst) return { map: dial.positions, orbit: null };
+    if (mode === 'orbita') { const orbit = buildOrbit(orbitCenterId); return { map: orbit.positions, orbit }; }
+    if (mode === 'escuelas') {
+      const schoolOf = new Map(nodes.map((node) => [node.id, node.school]));
+      return { map: clusterLayout({ nodes, groupOf: (node) => schoolOf.get(node.id)!, centers: SCHOOL_CENTERS }), orbit: null };
+    }
+    if (mode === 'cronologia') return { map: timeline.positions, orbit: null };
+    const map = new Map<string, Point>();
+    nodes.forEach((node) => map.set(node.id, { x: node.x, y: node.y * 0.88 + 16 }));
+    return { map, orbit: null };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, nodes, orbitCenterId, degree, intro, burst, dial, timeline]);
+  const targets = layout.map;
+  const orbit = layout.orbit;
+
+  /* posiciones animadas entre modos (0.88 s, ease-in-out; 2.2 s escalonadas en el estallido de la intro) */
   const [positions, setPositions] = useState<Map<string, Point>>(() => targets);
   const positionsRef = useRef(positions);
   positionsRef.current = positions;
+  hoverRef.current = hovered;
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  spinOnRef.current = mode === 'red' && !selectedId && !intro && !reducedMotion;
   useEffect(() => {
     const from = new Map(positionsRef.current);
     const start = performance.now();
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const duration = reduced ? 1 : 880;
+    const staggered = introTweenRef.current && !reduced;
+    const duration = reduced ? 1 : staggered ? 2200 : 880;
+    const staggerMs = (id: string) => (staggered ? (dialRank.get(id) ?? 0) * 7 : 0);
+    const totalMs = duration + (staggered ? nodes.length * 7 : 0);
     // Deriva ambiental: el sistema respira. Cada nodo flota con su propia fase
     // (amplitud contenida en cronología, donde el eje manda). Sin deriva si el
     // sistema pide menos movimiento.
@@ -245,16 +259,23 @@ export default function Instrumento() {
     nodeShapes.forEach((shape, index) => phases.set(shape.id, index * 1.618));
     let frame = 0;
     let lastPaint = 0;
+    let lastTick = start;
     const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-      if (t >= 1 && now - lastPaint < 42) { frame = requestAnimationFrame(tick); return; } // ~24 fps en reposo
+      const dt = Math.min(0.05, (now - lastTick) / 1000); lastTick = now;
+      // Giro lento de toda la red cuando nadie la está mirando de cerca (pausa al apuntar un nodo).
+      if (spinOnRef.current && !hoverRef.current && !document.hidden) thetaRef.current += dt * SPIN_RATE;
+      const t = Math.min(1, (now - start) / totalMs);
+      if (t >= 1 && (document.hidden || now - lastPaint < 66)) { frame = requestAnimationFrame(tick); return; } // ~15 fps en reposo; nada si la pestaña está oculta
       lastPaint = now;
+      const angle = mode === 'red' ? thetaRef.current : 0;
       const next = new Map<string, Point>();
       targets.forEach((target, id) => {
-        const origin = from.get(id) ?? target;
-        let x = origin.x + (target.x - origin.x) * e;
-        let y = origin.y + (target.y - origin.y) * e;
+        const local = Math.min(1, Math.max(0, (now - start - staggerMs(id)) / duration));
+        const e = local < 0.5 ? 4 * local * local * local : 1 - Math.pow(-2 * local + 2, 3) / 2;
+        const goal = angle ? rotateAround(target, CENTER, angle) : target;
+        const origin = from.get(id) ?? goal;
+        let x = origin.x + (goal.x - origin.x) * e;
+        let y = origin.y + (goal.y - origin.y) * e;
         if (!reduced) {
           const phase = phases.get(id) ?? 0;
           x += (Math.sin(now / 5400 + phase) + Math.sin(now / 1900 + phase * 1.7) * 0.3) * driftAmp * e;
@@ -267,6 +288,7 @@ export default function Instrumento() {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targets]);
 
   /* ---------- zoom/paneo ---------- */
@@ -286,7 +308,7 @@ export default function Instrumento() {
       if (viewAnimRef.current) { cancelAnimationFrame(viewAnimRef.current); viewAnimRef.current = 0; }
       const point = svgPoint(event.clientX, event.clientY);
       setView((current) => {
-        const k = Math.min(2.8, Math.max(0.45, current.k * Math.exp(-event.deltaY * 0.0014)));
+        const k = clampK(current.k * Math.exp(-event.deltaY * 0.0014));
         return { k,
           x: (point.x - W / 2) / k - (point.x - W / 2) / current.k + current.x,
           y: (point.y - H / 2) / k - (point.y - H / 2) / current.k + current.y };
@@ -295,37 +317,85 @@ export default function Instrumento() {
     svg.addEventListener('wheel', onWheel, { passive: false });
     return () => svg.removeEventListener('wheel', onWheel);
   }, []);
-  const zoomBy = (amount: number) => { if (viewAnimRef.current) { cancelAnimationFrame(viewAnimRef.current); viewAnimRef.current = 0; } setView((current) => ({ ...current, k: Math.min(2.8, Math.max(0.45, current.k + amount)) })); };
+  const zoomBy = (amount: number) => { if (viewAnimRef.current) { cancelAnimationFrame(viewAnimRef.current); viewAnimRef.current = 0; } setView((current) => ({ ...current, k: clampK(current.k + amount) })); };
+
+  /* ---------- carril visible: lo que queda entre el riel y el dossier ---------- */
+  function measureLane(): Lane {
+    const svg = svgRef.current; const root = rootRef.current;
+    if (!svg || !root) return { left: 0, right: W, top: 0, bottom: H };
+    const rect = svg.getBoundingClientRect();
+    const scale = Math.min(rect.width / W, rect.height / H) || 1;
+    const offX = (rect.width - W * scale) / 2; const offY = (rect.height - H * scale) / 2;
+    const rail = root.querySelector('.inst-rail')?.getBoundingClientRect();
+    const dossier = root.querySelector('.inst-dossier')?.getBoundingClientRect();
+    const leftPx = rail && rail.width > 0 ? rail.right - rect.left + 12 : 0;
+    const rightPx = dossier && dossier.width > 0 ? dossier.left - rect.left - 12 : rect.width;
+    // 86 px arriba (cabecera) y abajo (tira de modos): el encuadre no debe quedar bajo ellas
+    return { left: (leftPx - offX) / scale, right: (rightPx - offX) / scale, top: (86 - offY) / scale, bottom: (rect.height - 86 - offY) / scale };
+  }
+  useEffect(() => {
+    const update = () => { laneRef.current = measureLane(); };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [isPhone, forceFull]);
+
+  // Primer encuadre de un enlace profundo en órbita (el carril ya está medido por el efecto anterior).
+  useEffect(() => {
+    if (mode === 'orbita' && selectedId) setView(fitView(buildOrbit(selectedId).framePoints, laneRef.current, WORLD, { ...ORBIT_FRAME, maxK: 1.5 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ---------- navegación con historial ---------- */
+  /** Encuadra la órbita de `centerId` en el carril libre (centro + vecinos directos). */
+  function frameOrbit(centerId: string) {
+    flyToView(fitView(buildOrbit(centerId).framePoints, laneRef.current, WORLD, { ...ORBIT_FRAME, maxK: 1.5 }));
+  }
   function go(id: string) {
     if (id !== selectedId) {
       if (selectedId) setHistory((stack) => [...stack.slice(-11), selectedId]);
       setSelectedId(id);
     }
     setPanel('nodo'); setInsp(null); setPhotoTucked(false);
-    flyToNode(id);
+    syncHash(id, threadId);
+    // Clic = el nodo pasa al centro. Desde la red se entra en ÓRBITA (como en la referencia),
+    // salvo que haya un Hilo o una ruta de la guía: ahí la red entera es el contexto que se lee.
+    const enterOrbit = mode === 'red' && !threadId && askPath.length === 0;
+    if (enterOrbit) setMode('orbita');
+    if (enterOrbit || mode === 'orbita') frameOrbit(id); else flyToNode(id);
   }
   function back() {
     const previous = history[history.length - 1];
     if (!previous) return;
     setHistory((stack) => stack.slice(0, -1));
     setSelectedId(previous); setPanel('nodo');
-    flyToNode(previous);
+    syncHash(previous, threadId);
+    if (mode === 'orbita') frameOrbit(previous); else flyToNode(previous);
   }
   function openThread(thread: AtlasThread) {
-    setThreadId(threadId === thread.id ? null : thread.id);
-    if (threadId !== thread.id) { setPanel('hilo'); setInsp(null); }
-    else setPanel(selectedId ? 'nodo' : 'campo');
+    const next = threadId === thread.id ? null : thread.id;
+    setThreadId(next);
+    if (next) { setPanel('hilo'); setInsp(null); } else setPanel(selectedId ? 'nodo' : 'campo');
+    // un Hilo se lee sobre la red completa: la órbita se desactiva
+    if (next && mode === 'orbita') { setMode('red'); flyHome(); }
+    syncHash(selectedId, next);
   }
   function switchMode(next: Mode) {
-    if (next === 'orbita' && !selectedId) { setSelectedId('inayatullah'); setPanel('nodo'); }
-    setMode(next); setInsp(null);
+    setInsp(null);
+    if (next === 'orbita') {
+      const center = selectedId ?? 'inayatullah';
+      if (!selectedId) setSelectedId(center);
+      if (threadId) setThreadId(null);
+      setPanel('nodo'); syncHash(center, null);
+      setMode('orbita'); frameOrbit(center);
+      return;
+    }
+    setMode(next); flyHome(); // cada modo tiene su propia figura: se vuelve a encuadrar
   }
-  function exitPrototype() { window.location.hash = '#/clasico'; }
+  function goClassic() { window.location.hash = '#/clasico'; }
 
   /* La cámara vuela (620 ms) a un destino; cualquier gesto la cancela. */
-  function flyToView(to: { k: number; x: number; y: number }) {
+  function flyToView(to: View) {
     if (viewAnimRef.current) cancelAnimationFrame(viewAnimRef.current);
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setView(to); return; }
     const from = view;
@@ -340,17 +410,13 @@ export default function Instrumento() {
   }
   function flyHome() { flyToView({ k: 0.92, x: 0, y: 0 }); }
 
-  /* Al seleccionar, la cámara vuela y acerca la entidad (a la izquierda del
-     dossier) como en la referencia: clic = zoom + reorganización de la vista.
-     En ÓRBITA la reorganización la hace el layout (anillos alrededor del nuevo
-     centro) y la cámara solo vuelve a encuadrarla. */
+  /* En ESCUELAS / CRONOLOGÍA / red con Hilo la selección no reorganiza (el modo es una
+     decisión del lector): la cámara acerca la entidad al CENTRO DEL CARRIL LIBRE, no a
+     un 40 % fijo del lienzo que acababa pegado al riel. */
   function flyToNode(id: string) {
-    if (mode === 'orbita') { flyHome(); return; }
-    const point = targets.get(id) ?? positions.get(id);
+    const point = positionsRef.current.get(id) ?? targets.get(id);
     if (!point) return;
-    const k = Math.min(2.2, Math.max(view.k, 1.5));
-    const aim = { x: W * 0.4, y: H / 2 };
-    flyToView({ k, x: (aim.x - W / 2) / k - (point.x - W / 2), y: (aim.y - H / 2) / k - (point.y - H / 2) });
+    flyToView(centerOn(point, Math.min(2.2, Math.max(view.k, 1.5)), laneRef.current, WORLD));
   }
 
   /* Clic fuera de toda entidad: deseleccionar, que todo se ilumine de nuevo
@@ -361,6 +427,7 @@ export default function Instrumento() {
     setSelectedId(null); setPanel('campo'); setInsp(null); setHovered(null);
     setThreadId(null); clearAskFocus();
     if (mode === 'orbita') setMode('red');
+    syncHash(null, null);
     flyHome();
   }
 
@@ -416,9 +483,74 @@ export default function Instrumento() {
   const askPathSet = new Set(askPath);
   const askPathEdgeKeys = new Set(askPath.slice(0, -1).map((id, i) => [id, askPath[i + 1]].sort().join('|')));
   const dimmed = (id: string) => (activeThread ? !threadSet.has(id) : askPath.length ? !askPathSet.has(id) : activeId ? !neighbors.has(id) : false);
-  const showLabel = (node: AtlasNode) =>
-    labels === 'all' || (labels === 'key' && ((degree.get(node.id) ?? 0) >= 4 || node.id === selectedId || node.id === hovered || threadSet.has(node.id) || askPathSet.has(node.id) || (activeId ? neighbors.has(node.id) : false)));
-  const zoomLevel = view.k < 0.95 ? ['01', t.zoomSystem] : view.k < 1.6 ? ['02', t.zoomConstellation] : ['03', t.zoomNode];
+  /* ---------- lectura: nivel de zoom, opacidad por anillo y etiquetas en pantalla ---------- */
+  const level = zoomLevel(view.k, !!selectedId);
+  const zoomName = [t.zoomSystem, t.zoomConstellation, t.zoomNode, t.zoomSource][level];
+  const tierOf = (id: string) => orbit?.tier.get(id) ?? 1;
+  const dialPhase = intro && !burst;
+  const dialProgress = dialPhase ? Math.min(1, (performance.now() - introStartRef.current) / INTRO_DIAL_MS) : 1;
+  /** Opacidad de un nodo: aparece en el dial → en ÓRBITA decae por anillo (1 · .34 · .07) → atenuado por foco/ruta. */
+  const nodeOpacity = (id: string) => {
+    if (dialPhase) return (dialRank.get(id) ?? 0) / nodes.length <= dialProgress ? 1 : 0;
+    if (orbit && tierOf(id) === 3) return 0.07;
+    if (!dimmed(id)) return 1;
+    return orbit && tierOf(id) === 2 ? 0.34 : 0.16;
+  };
+  const verbsFromActive = activeId ? new Map(getConnections(activeId).map((item) => [item.node.id, item.relation])) : null;
+  const lane = laneRef.current;
+  const laneMid = (lane.left + lane.right) / 2;
+  const routeActive = !!activeThread || askPath.length > 0;
+  const labelCandidates: LabelCandidate[] = [];
+  if (!intro) visibleNodes.forEach((node) => {
+    const point = positions.get(node.id); if (!point) return;
+    const isSel = node.id === selectedId; const isHover = node.id === hovered;
+    const isNeighbor = !!activeId && neighbors.has(node.id);
+    const inRoute = threadSet.has(node.id) || askPathSet.has(node.id);
+    const forced = isSel || isHover || inRoute || isNeighbor;
+    const degreeOf = degree.get(node.id) ?? 0;
+    if (!forced) {
+      // NOMBRES · NO apaga los opcionales; los forzados (selección, vecinos, ruta) siempre se nombran.
+      if (labels === 'off' || nodeOpacity(node.id) < 0.3) return;
+      const optional = activeId || routeActive ? !!orbit && tierOf(node.id) === 2 && view.k > 1.4 : labels === 'all' || degreeOf >= 4;
+      if (!optional) return;
+    }
+    const screen = toScreen(point, view, WORLD);
+    labelCandidates.push({
+      id: node.id, x: screen.x, y: screen.y, r: node.radius * 0.82 * view.k, text: node.name.toUpperCase(),
+      sub: isNeighbor && !isSel ? verbsFromActive?.get(node.id) : undefined,
+      fontPx: isSel ? 12.5 : forced ? 10.5 : 9.5,
+      priority: isSel ? 0 : isHover ? 1 : inRoute ? 2 : isNeighbor ? 3 - degreeOf * 0.01 : 10 - degreeOf * 0.1,
+      forced, side: screen.x < laneMid && !isSel ? 'l' : 'r',
+    });
+  });
+  const placedLabels = planLabels(labelCandidates, { bounds: lane, charWidth });
+  // Rótulos «TIPO · n» de los sectores de la órbita: ceden ante los nombres y se apartan si chocan.
+  const orbitCaptions = orbit && !intro ? orbit.captions.flatMap((caption) => {
+    const text = `${typePlurals[caption.type as EntityType]} · ${caption.count}`.toUpperCase();
+    for (const factor of [1, 1.14, 1.28]) {
+      const at = toScreen({ x: orbit.center.x + (caption.x - orbit.center.x) * factor, y: orbit.center.y + (caption.y - orbit.center.y) * factor }, view, WORLD);
+      const box = textBox(at.x, at.y, text, 9.5, charWidth);
+      const inside = box.x > lane.left && box.x + box.w < lane.right && box.y > lane.top && box.y + box.h < lane.bottom;
+      if (inside && !placedLabels.some((label) => label.box.x < box.x + box.w && label.box.x + label.box.w > box.x && label.box.y < box.y + box.h && label.box.y + label.box.h > box.y)) return [{ text, x: at.x, y: at.y }];
+    }
+    return [];
+  }) : [];
+  // Nivel 04 (FUENTE): el verbo de cada relación del nodo activo, como «chip» sobre la línea, solo donde hay sitio.
+  const edgeChips = level >= 3 && activeId && !intro ? (() => {
+    const taken = placedLabels.map((label) => label.box);
+    return visibleEdges.filter((edge) => edge.source === activeId || edge.target === activeId).flatMap((edge) => {
+      const a = positions.get(edge.source); const b = positions.get(edge.target);
+      const verb = verbsFromActive?.get(edge.source === activeId ? edge.target : edge.source);
+      if (!a || !b || !verb) return [];
+      for (const t of [0.5, 0.42, 0.58, 0.34, 0.66]) {
+        const at = toScreen({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, view, WORLD);
+        const text = verb.toUpperCase(); const box = textBox(at.x, at.y + 3, text, 8.5, charWidth);
+        const free = box.x > lane.left && box.x + box.w < lane.right && !taken.some((o) => o.x < box.x + box.w + 4 && o.x + o.w + 4 > box.x && o.y < box.y + box.h && o.y + o.h > box.y);
+        if (free) { taken.push(box); return [{ text, x: at.x, y: at.y + 3, w: box.w }]; }
+      }
+      return [];
+    });
+  })() : [];
   const typeCounts = (Object.keys(typeLabels) as EntityType[]).map((type) => ({ type, count: nodes.filter((node) => node.type === type).length }));
   const searchResults = query.trim() ? nodes.filter((node) => matchesSearch(node, query)).slice(0, 7) : [];
   const indexNodes = [...nodes].sort((a, b) =>
@@ -587,10 +719,10 @@ export default function Instrumento() {
   const crumbs = selectedId ? [...history, selectedId] : history;
 
   if (isPhone && !forceFull) {
-    return <Phone onOpenFull={() => setForceFull(true)} onExitClassic={exitPrototype} initialNodeId={selectedId} initialBlueprint={blueprintOpen} />;
+    return <Phone onOpenFull={() => setForceFull(true)} onExitClassic={goClassic} initialNodeId={selectedId} initialBlueprint={blueprintOpen} />;
   }
 
-  return <div className={`inst ${intro ? 'is-intro' : ''}`} ref={rootRef}>
+  return <div className={`inst ${intro ? 'is-intro' : ''} ${dialPhase ? 'is-dial' : ''}`} ref={rootRef}>
     <div className="inst-grid-bg" />
     <svg ref={svgRef} className="inst-net" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t.introKicker}
       onPointerDown={(event) => {
@@ -619,7 +751,7 @@ export default function Instrumento() {
         if (pinch && pointersRef.current.size >= 2) {
           const [a, b] = [...pointersRef.current.values()];
           const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-          const k = Math.min(2.8, Math.max(0.45, pinch.view.k * Math.hypot(a.x - b.x, a.y - b.y) / pinch.distance));
+          const k = clampK(pinch.view.k * Math.hypot(a.x - b.x, a.y - b.y) / pinch.distance);
           // el punto del grafo bajo el centro inicial sigue a los dedos
           setView({ k,
             x: (center.x - W / 2) / k - (pinch.center.x - W / 2) / pinch.view.k + pinch.view.x,
@@ -645,14 +777,31 @@ export default function Instrumento() {
         window.setTimeout(() => { dragRef.current = null; }, 0);
       }}
       onPointerCancel={(event) => { pointersRef.current.delete(event.pointerId); pinchRef.current = null; dragRef.current = null; pressRef.current = null; }}
-      onClick={() => { if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (dragRef.current?.moved) return; resetWorld(); }}>
+      onClick={() => { if (intro) { finishIntro(); return; } if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (dragRef.current?.moved) return; resetWorld(); }}>
       <g transform={`translate(${W / 2} ${H / 2}) scale(${view.k}) translate(${-W / 2 + view.x} ${-H / 2 + view.y})`}>
         {mode === 'cronologia' && [1960, 1980, 2000, 2020].map((year) => {
-          const x = timelineX(year);
+          const x = timeline.xOf(year);
           return <g key={year}><line x1={x} y1={60} x2={x} y2={630} stroke="#1d2f23" strokeDasharray="3 6" /><text className="inst-axis" x={x} y={655} textAnchor="middle">{year}</text></g>;
         })}
-        {mode === 'escuelas' && SCHOOL_ORDER.map((school) => <text key={school} className="inst-territory" style={{ fill: schoolPalette[school].stroke, opacity: 0.6 }} x={SCHOOL_CENTERS[school].x} y={SCHOOL_CENTERS[school].y - 108} textAnchor="middle">{schools[school]}</text>)}
-        {mode === 'orbita' && [185, 305, 395].map((radius) => <ellipse key={radius} cx={W / 2} cy={H / 2} rx={radius} ry={radius * 0.74} fill="none" stroke="#1d2f23" strokeDasharray="2 7" />)}
+        {mode === 'escuelas' && SCHOOL_ORDER.map((school) => <text key={school} className="inst-territory" style={{ fill: schoolPalette[school].stroke, opacity: 0.6 }} x={SCHOOL_CENTERS.get(school)!.x} y={SCHOOL_CENTERS.get(school)!.y - 108} textAnchor="middle">{schools[school]}</text>)}
+        {orbit && !intro && orbit.rings.map((radius) => <circle key={radius} cx={orbit.center.x} cy={orbit.center.y} r={radius} fill="none" stroke="#2a4533" strokeWidth={1} strokeDasharray="1 5" vectorEffect="non-scaling-stroke" />)}
+        {dialPhase && <g aria-hidden="true">
+          {(() => {
+            const R = 142; const C = 2 * Math.PI * R; const head = -Math.PI / 2 + dialProgress * Math.PI * 2;
+            return <>
+              <circle cx={CENTER.x} cy={CENTER.y} r={R + 9} fill="none" stroke="#1d2f23" vectorEffect="non-scaling-stroke" />
+              <circle cx={CENTER.x} cy={CENTER.y} r={R} fill="none" stroke="#b7f04a" strokeOpacity={0.55} vectorEffect="non-scaling-stroke"
+                strokeDasharray={C} strokeDashoffset={C * (1 - dialProgress)} transform={`rotate(-90 ${CENTER.x} ${CENTER.y})`} />
+              {Array.from({ length: 60 }, (_, i) => {
+                if (i / 60 > dialProgress) return null;
+                const a = (i / 60) * Math.PI * 2 - Math.PI / 2; const r2 = R + (i % 5 ? 11 : 16);
+                return <line key={i} x1={CENTER.x + Math.cos(a) * (R + 6)} y1={CENTER.y + Math.sin(a) * (R + 6)} x2={CENTER.x + Math.cos(a) * r2} y2={CENTER.y + Math.sin(a) * r2} stroke="#7a8a78" strokeOpacity={0.6} vectorEffect="non-scaling-stroke" />;
+              })}
+              <circle cx={CENTER.x + Math.cos(head) * R} cy={CENTER.y + Math.sin(head) * R} r={2.6} fill="#b7f04a" />
+            </>;
+          })()}
+        </g>}
+        <g style={{ opacity: dialPhase ? 0 : 1, transition: 'opacity .9s ease' }}>
         {visibleEdges.map((edge, i) => {
           const a = positions.get(edge.source); const b = positions.get(edge.target);
           if (!a || !b) return null;
@@ -660,13 +809,25 @@ export default function Instrumento() {
           const inRoute = threadEdgeKeys.has(key) || askPathEdgeKeys.has(key);
           const isSavedEdge = savedEdgeSet.has(edgeId(edge));
           const inFocus = !!activeId && (edge.source === activeId || edge.target === activeId);
-          const opacity = inRoute ? 1 : dimmed(edge.source) && dimmed(edge.target) ? 0.14 : inFocus ? 0.95 : isSavedEdge ? 0.85 : 0.55;
+          const ghost = !!orbit && (tierOf(edge.source) === 3 || tierOf(edge.target) === 3);
+          const opacity = inRoute ? 1 : ghost ? 0.04 : dimmed(edge.source) && dimmed(edge.target) ? 0.14 : inFocus ? 0.95 : isSavedEdge ? 0.85 : 0.55;
           const dx = b.x - a.x; const dy = b.y - a.y; const dist = Math.hypot(dx, dy) || 1;
           const bend = (i % 2 === 0 ? 1 : -1) * dist * 0.07;
-          const d = `M${a.x} ${a.y} Q${(a.x + b.x) / 2 + (-dy / dist) * bend} ${(a.y + b.y) / 2 + (dx / dist) * bend} ${b.x} ${b.y}`;
+          const cx = (a.x + b.x) / 2 + (-dy / dist) * bend; const cy = (a.y + b.y) / 2 + (dx / dist) * bend;
+          const d = `M${a.x} ${a.y} Q${cx} ${cy} ${b.x} ${b.y}`;
           const srcHue = schoolPalette[nodeById.get(edge.source)?.school ?? 'foundations'].stroke;
+          // Flecha source→target a ~84 % de la curva en las aristas activas: la relación tiene sentido («desarrolló»).
+          const arrow = inFocus && !inRoute ? (() => {
+            const u = 0.16; const t = 0.84; const size = 6.5 / view.k;
+            const px = u * u * a.x + 2 * u * t * cx + t * t * b.x; const py = u * u * a.y + 2 * u * t * cy + t * t * b.y;
+            const tx = 2 * u * (cx - a.x) + 2 * t * (b.x - cx); const ty = 2 * u * (cy - a.y) + 2 * t * (b.y - cy);
+            const ang = Math.atan2(ty, tx);
+            return `M${px} ${py} L${px - size * Math.cos(ang - 0.42)} ${py - size * Math.sin(ang - 0.42)} L${px - size * Math.cos(ang + 0.42)} ${py - size * Math.sin(ang + 0.42)} Z`;
+          })() : null;
           return <g key={i} opacity={opacity}>
-            <path className={inRoute ? 'inst-edge-flow' : undefined} d={d} fill="none" stroke={inRoute ? '#b7f04a' : isSavedEdge ? '#ffc93c' : srcHue} strokeOpacity={inRoute || isSavedEdge || inFocus ? 0.95 : 0.45} strokeWidth={inRoute ? 2.2 : isSavedEdge ? 1.6 : 1.1} />
+            <path className={inRoute ? 'inst-edge-flow' : undefined} d={d} fill="none" stroke={inRoute ? '#b7f04a' : isSavedEdge ? '#ffc93c' : srcHue} strokeOpacity={inRoute || isSavedEdge || inFocus ? 0.95 : 0.45} strokeWidth={inRoute ? 2.2 : isSavedEdge ? 1.6 : 1.1}
+              strokeDasharray={edge.reference ? undefined : '3 4'} />
+            {arrow && <path d={arrow} fill={srcHue} fillOpacity={0.95} />}
             <path data-edge={edgeId(edge)} d={d} fill="none" stroke="transparent" strokeWidth={coarsePointer ? 32 : 13} style={{ cursor: 'pointer' }}
               onClick={(event) => {
                 event.stopPropagation();
@@ -675,11 +836,12 @@ export default function Instrumento() {
               }} />
           </g>;
         })}
+        </g>
         {visibleNodes.map((node) => {
           const point = positions.get(node.id); if (!point) return null;
           const radius = node.radius * 0.82;
           const stepIndex = activeThread ? activeThread.path.indexOf(node.id) : -1;
-          return <g key={node.id} className="inst-node" data-node={node.id} transform={`translate(${point.x} ${point.y})`} opacity={dimmed(node.id) ? 0.16 : 1}
+          return <g key={node.id} className="inst-node" data-node={node.id} transform={`translate(${point.x} ${point.y})`} opacity={nodeOpacity(node.id)} style={{ transition: 'opacity .45s ease' }}
             onMouseEnter={() => setHovered(node.id)} onMouseLeave={() => setHovered(null)}
             onClick={(event) => { event.stopPropagation(); if (!dragRef.current?.moved) go(node.id); }}>
             <circle r={radius + (coarsePointer ? 16 : 6)} fill="transparent" />
@@ -694,9 +856,17 @@ export default function Instrumento() {
             {savedIds.has(node.id) && stepIndex < 0 && <circle cx={radius * 0.78} cy={radius * 0.78} r={4.4} fill="#ffc93c" stroke="#0a120d" strokeWidth={1.2} />}
             {node.initials && <text textAnchor="middle" dominantBaseline="central" fontFamily="'IBM Plex Mono', monospace" fontWeight={600} fontSize={Math.max(9, radius * 0.66)} fill="#0a120d">{node.initials}</text>}
             {stepIndex >= 0 && <g transform={`translate(${radius * 0.85} ${-radius * 0.85})`}><circle r={10} fill="#b7f04a" /><text textAnchor="middle" dominantBaseline="central" fontSize={10} fontFamily="'IBM Plex Mono', monospace" fill="#11160c">{stepIndex + 1}</text></g>}
-            {showLabel(node) && <text className={`inst-node-label ${node.id === selectedId ? 'sel' : ''}`} y={radius + 15} textAnchor="middle">{node.name.length > 26 ? `${node.name.slice(0, 25)}…` : node.name}</text>}
           </g>;
         })}
+      </g>
+      {/* Etiquetas: capa SIN escala de zoom. Píxeles constantes + descarte por colisión (engine/labels.ts). */}
+      <g className="inst-labels" aria-hidden="true">
+        {placedLabels.map((label) => <g key={label.id} opacity={label.forced ? 1 : 0.8}>
+          <text className={`inst-node-label ${label.id === selectedId ? 'sel' : ''}`} x={label.x} y={label.y} textAnchor={label.anchor} fontSize={label.fontPx}>{label.text}</text>
+          {label.sub && <text className="inst-node-sub" x={label.x} y={label.y + label.fontPx * 0.9 + 2} textAnchor={label.anchor} fontSize={label.fontPx * 0.85}>{label.sub}</text>}
+        </g>)}
+        {edgeChips.map((chip) => <g key={chip.text + chip.x}><rect x={chip.x - chip.w / 2 - 4} y={chip.y - 10} width={chip.w + 8} height={14} rx={2} fill="rgba(8,14,10,.92)" stroke="#2a4533" /><text className="inst-node-sub" style={{ stroke: 'none' }} x={chip.x} y={chip.y} textAnchor="middle" fontSize={8.5}>{chip.text}</text></g>)}
+        {orbitCaptions.map((caption) => <text key={caption.text} className="inst-ring-caption" x={caption.x} y={caption.y} textAnchor="middle">{caption.text}</text>)}
       </g>
     </svg>
 
@@ -721,7 +891,7 @@ export default function Instrumento() {
         <button aria-pressed={indexOpen} onClick={() => setIndexOpen(true)}>{t.index}</button>
         <button onClick={surprise} title={ui.actions.surprise}>⚄ <span className="hidesm">{ui.actions.surprise}</span></button>
         {askEnabled && <button aria-pressed={askOpen} onClick={() => setAskOpen(!askOpen)} title={ui.ask.open}>✦ <span className="hidesm">{ui.ask.eyebrow}</span></button>}
-        <button onClick={exitPrototype}>{t.classicView}</button>
+        <button onClick={goClassic}>{t.classicView}</button>
       </nav>
     </header>
 
@@ -747,6 +917,7 @@ export default function Instrumento() {
         </div>
       </section>
       <p className="inst-hint">{t.railHint}</p>
+      <div className="inst-legend" aria-label={t.relations}><span><i />{t.directSource}</span><span><i className="dashed" />{t.editorialAssoc}</span></div>
     </aside>
 
     {activeThread && <div className="inst-paperwrap"><button className="inst-paper" onClick={() => setReportOpen(true)} aria-label={t.paperAria}>
@@ -771,7 +942,7 @@ export default function Instrumento() {
       {panel === 'hilo' && activeThread ? renderHilo(activeThread) : panel === 'nodo' && selected ? renderNodo(selected) : renderCampo()}
     </aside>
 
-    <div className="inst-zoomlbl tiny">ZOOM <b>{zoomLevel[0]}</b> — {zoomLevel[1]} · ×{view.k.toFixed(2)}</div>
+    <div className="inst-zoomlbl tiny">ZOOM <b>{String(level + 1).padStart(2, '0')}</b> — {zoomName} · ×{view.k.toFixed(2)}</div>
     <div className="inst-names" role="group" aria-label={t.names}>
       <span className="tiny">{t.names}</span>
       {(['off', 'key', 'all'] as LabelMode[]).map((value) => <button key={value} aria-pressed={labels === value} onClick={() => setLabels(value)}>{value === 'off' ? t.namesOff : value === 'key' ? t.namesKey : t.namesAll}</button>)}
